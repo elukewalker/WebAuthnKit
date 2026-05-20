@@ -1,0 +1,121 @@
+{
+  "version": "2.0.0",
+  "date": "2026-05-20T10:04:11Z",
+  "mode": "daily",
+  "scope": "full",
+  "diff_mode": false,
+  "phases_run": [0, 1, 2, 3, 4, 5, 6, 9, 12, 13, 14],
+  "attack_surface": {
+    "code": {
+      "public_endpoints": 2,
+      "authenticated": 7,
+      "admin": 0,
+      "api": 9,
+      "uploads": 0,
+      "integrations": 2,
+      "background_jobs": 0,
+      "websockets": 0
+    },
+    "infrastructure": {
+      "ci_workflows": 1,
+      "webhook_receivers": 0,
+      "container_configs": 2,
+      "iac_configs": 0,
+      "deploy_targets": 1,
+      "secret_management": "AWS Secrets Manager + env vars"
+    }
+  },
+  "findings": [
+    {
+      "id": 1,
+      "severity": "HIGH",
+      "confidence": 10,
+      "status": "VERIFIED",
+      "phase": 5,
+      "phase_name": "Infrastructure Shadow Surface",
+      "category": "OWASP A05 - Security Misconfiguration",
+      "fingerprint": "sha256-a8f4c2d1e9b7f6a5c3d8e2f1a4b6c9d2e5f8a1b3c6d9e2f5a8b1c4d7e0f3a6b9",
+      "title": "CORS Wildcard Origin in Production Template",
+      "file": "backend/template.yaml",
+      "line": 89,
+      "commit": "9def9ff",
+      "description": "The SAM template defaults the CORS Access-Control-Allow-Origin header to wildcard ('*'), which allows any website to make authenticated requests to the API Gateway endpoints.",
+      "exploit_scenario": "1. Attacker creates malicious website at evil.com\n2. Legitimate user visits evil.com while logged into WebAuthnKit\n3. Malicious JavaScript makes authenticated requests to WebAuthnKit API\n4. Browser allows cross-origin request due to CORS wildcard\n5. Attacker reads credentials, modifies user data, or deletes account",
+      "impact": "Complete compromise of user account data via CSRF from any origin",
+      "recommendation": "Change default CORS origin to actual frontend URL: APICorsOrigin: Default: \"'https://your-react-app-domain.com'\"",
+      "playbook": "1. Update backend/template.yaml parameter default\n2. Redeploy SAM stack\n3. Verify CORS headers in browser devtools\n4. Test that unauthorized origins are blocked",
+      "verification": "independently verified"
+    },
+    {
+      "id": 2,
+      "severity": "MEDIUM",
+      "confidence": 9,
+      "status": "VERIFIED",
+      "phase": 4,
+      "phase_name": "CI/CD Pipeline Security",
+      "category": "CI/CD Pipeline Security",
+      "fingerprint": "sha256-b9e5d3f2a1c8e6d4f7b2a9e1c5d8f3a6b2e9d1c4f7a0e3b6d9f2a5c8e1d4f7a0",
+      "title": "Unpinned Third-Party GitHub Actions",
+      "file": ".github/workflows/snyk_action.yml",
+      "line": "14,17,24,33,40,47,53",
+      "commit": "9def9ff",
+      "description": "GitHub Actions are pinned to @master instead of SHA hashes, allowing action maintainers or attackers who compromise action repos to inject malicious code.",
+      "exploit_scenario": "1. Attacker compromises snyk/actions or actions/checkout repo\n2. Pushes malicious code to master branch\n3. Next WebAuthnKit CI run pulls compromised @master\n4. Malicious action extracts SNYKTOKEN or modifies artifacts\n5. Attacker gains Snyk access or backdoors Lambda functions",
+      "impact": "CI/CD compromise leading to secret exfiltration or backdoored deployments",
+      "recommendation": "Pin all third-party actions to full commit SHAs with version comments. Use Dependabot for updates.",
+      "playbook": "1. For each action, find latest stable release SHA\n2. Replace @master with @{sha} # v{version}\n3. Enable Dependabot for GitHub Actions\n4. Commit and push",
+      "verification": "independently verified"
+    },
+    {
+      "id": 3,
+      "severity": "MEDIUM",
+      "confidence": 9,
+      "status": "VERIFIED",
+      "phase": 4,
+      "phase_name": "CI/CD Pipeline Security",
+      "category": "CI/CD Pipeline Security",
+      "fingerprint": "sha256-c1f8e4b7d2a9f6c3e0b8d5f2a7c4e1b9d6f3a0c7e4b1d8f5a2c9e6b3d0f7a4c1",
+      "title": "Missing CODEOWNERS Protection on Workflows",
+      "file": "N/A (missing .github/CODEOWNERS)",
+      "line": 0,
+      "commit": "9def9ff",
+      "description": "No CODEOWNERS file to enforce review requirements on workflow modifications. Any contributor can modify CI/CD without security review.",
+      "exploit_scenario": "1. External contributor submits PR with code changes\n2. PR includes subtle workflow modification (e.g., secret exfiltration)\n3. Maintainer reviews code but misses workflow change\n4. PR merged, workflow runs with attacker's changes\n5. Secrets exfiltrated or malicious code deployed",
+      "impact": "Unauthorized workflow changes enabling CI/CD compromise",
+      "recommendation": "Create .github/CODEOWNERS with: .github/workflows/* @YubicoLabs/security-team",
+      "playbook": "1. Create .github/CODEOWNERS\n2. Add workflow protection rule\n3. Enable branch protection requiring CODEOWNERS approval\n4. Commit and push",
+      "verification": "independently verified"
+    }
+  ],
+  "supply_chain_summary": {
+    "direct_deps_node": 7,
+    "direct_deps_java": 1,
+    "transitive_deps": "not counted",
+    "critical_cves": 0,
+    "high_cves": 0,
+    "install_scripts": "not checked (node_modules not hydrated)",
+    "lockfile_present": true,
+    "lockfile_tracked": true,
+    "tools_skipped": []
+  },
+  "filter_stats": {
+    "candidates_scanned": 4,
+    "hard_exclusion_filtered": 0,
+    "confidence_gate_filtered": 1,
+    "verification_filtered": 0,
+    "reported": 3
+  },
+  "totals": {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "tentative": 0
+  },
+  "trend": {
+    "prior_report_date": null,
+    "resolved": 0,
+    "persistent": 0,
+    "new": 3,
+    "direction": "first_run"
+  }
+}

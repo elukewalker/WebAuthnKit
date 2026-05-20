@@ -11,10 +11,10 @@ import { LoginPage } from '../LoginPage';
 import { LoginWithSecurityKeyPage } from '../LoginWithSecurityKeyPage';
 import { RegisterPage } from '../RegisterPage';
 
-import Amplify from 'aws-amplify';
+import { Amplify } from 'aws-amplify';
 import aws_exports from '../aws-exports';
 
-const config = Amplify.configure(aws_exports);
+Amplify.configure(aws_exports);
 
 function App() {
     const alert = useSelector(state => state.alert);

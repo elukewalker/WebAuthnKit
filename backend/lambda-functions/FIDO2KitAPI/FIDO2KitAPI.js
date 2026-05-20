@@ -18,10 +18,9 @@ const dbUtil    = require('./DatabaseController.js');
 const base64url = require('base64url');
 const cbor      = require('cbor');
 var crypto      = require('crypto');
-var AWS         = require('aws-sdk');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 var bcrypt      = require('bcryptjs');
-AWS.config.region = process.env.Region;
-var lambda = new AWS.Lambda();
+const lambdaClient = new LambdaClient({ region: process.env.Region });
 const validate  = require('validate.js');
 const defaultInvalidPIN = -1;
 const constraints = {
@@ -132,7 +131,7 @@ async function getAll(username, id) {
     let credentialsPayload = {};
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
         credentialsPayload.fido = JSON.parse(JSON.parse(response.Payload));
         console.log("response payload: ", credentialsPayload);
@@ -189,7 +188,7 @@ async function updateFIDO2CredentialNickname(username, body) {
     
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
         console.log("response: ", response);
 
         let payload = JSON.parse(JSON.parse(response.Payload));
@@ -221,7 +220,7 @@ async function deleteFIDO2Credential(username, credentialId) {
     
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
         let payload = JSON.parse(JSON.parse(response.Payload));
 
@@ -251,7 +250,7 @@ async function startUsernamelessAuthentication() {
 
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
         console.log("response: "+response);
         console.log("response payload: " + response.Payload);
         console.log("response payload jsonparse: ", JSON.parse(response.Payload));
@@ -310,7 +309,7 @@ async function startRegisterFIDO2Credential(profile, body, uid) {
     
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
         let startRegisterPayload = JSON.parse(JSON.parse(response.Payload));
 
@@ -419,7 +418,7 @@ async function finishRegisterFIDO2Credential(userName, body) {
     
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
         console.log("response: ", response);
         let payload = JSON.parse(response.Payload);
@@ -601,7 +600,7 @@ async function deleteUser(username, userId, token) {
     
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
         let payload = JSON.parse(JSON.parse(response.Payload));
 

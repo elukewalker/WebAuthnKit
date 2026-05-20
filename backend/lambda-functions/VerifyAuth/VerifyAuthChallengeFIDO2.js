@@ -5,9 +5,10 @@
 
 'use strict';
 
-var AWS = require('aws-sdk');
-AWS.config.region = process.env.Region;
-var lambda = new AWS.Lambda();
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+const { CognitoIdentityProviderClient, AdminUpdateUserAttributesCommand } = require('@aws-sdk/client-cognito-identity-provider');
+const lambdaClient = new LambdaClient({ region: process.env.Region });
+const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.Region });
 const base64url = require('base64url');
 const cbor      = require('cbor');
 const dbUtil    = require('./DatabaseController.js');
@@ -79,25 +80,21 @@ exports.handler = async (event) => {
             event.response.answerCorrect = false;
         }
 
-        const cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider({
-            apiVersion: '2016-04-18'
-          });
-        cognitoidentityserviceprovider.adminUpdateUserAttributes(
-          {
-            UserAttributes: [
-              {
-                Name: 'preferred_username',
-                Value: event.request.userAttributes.sub
-              }
-            ],
-            UserPoolId: event.userPoolId,
-            Username: event.userName
-          },
-          function(err, data) {
-            console.log("err: ", err);
-            console.log("data: ", data);
-          }
-        );
+        try {
+            await cognitoClient.send(new AdminUpdateUserAttributesCommand({
+                UserAttributes: [
+                    {
+                        Name: 'preferred_username',
+                        Value: event.request.userAttributes.sub
+                    }
+                ],
+                UserPoolId: event.userPoolId,
+                Username: event.userName
+            }));
+            console.log("User attributes updated successfully");
+        } catch (err) {
+            console.log("Error updating user attributes: ", err);
+        }
     
     // AUTHENTICATION
     } else if (authType.type === 'webauthn.get') {
@@ -183,7 +180,7 @@ async function verifyMakeCredentialResponse(attestationResponse, event) {
     
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
         console.log("response: ", response);
         let payload = JSON.parse(response.Payload);
@@ -223,7 +220,7 @@ async function verifyAssertionResponse (assertionResponse, event) {
 
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
         console.log("response: ", response);
         let payload = JSON.parse(response.Payload);

@@ -13,9 +13,10 @@
 'use strict';
 
 var crypto = require('crypto');
-var AWS = require('aws-sdk');
-AWS.config.region = process.env.Region;
-var lambda = new AWS.Lambda();
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+const { CognitoIdentityProviderClient, AdminUpdateUserAttributesCommand } = require('@aws-sdk/client-cognito-identity-provider');
+const lambdaClient = new LambdaClient({ region: process.env.Region });
+const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.Region });
 const validate  = require('validate.js');
 var constraints = {
     username: {
@@ -77,26 +78,22 @@ exports.handler = async (event = {}) => {
 
 // REGISTRATION
 async function getCreateCredentialsOptions(event, creds) {
-    
-    const cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider({
-        apiVersion: '2016-04-18'
-      });
-    cognitoidentityserviceprovider.adminUpdateUserAttributes(
-      {
-        UserAttributes: [
-          {
-            Name: 'preferred_username',
-            Value: event.request.userAttributes.sub
-          }
-        ],
-        UserPoolId: event.userPoolId,
-        Username: event.userName
-      },
-      function(err, data) {
-        console.log("err: ", err);
-        console.log("data: ", data);
-      }
-    );
+
+    try {
+        await cognitoClient.send(new AdminUpdateUserAttributesCommand({
+            UserAttributes: [
+                {
+                    Name: 'preferred_username',
+                    Value: event.request.userAttributes.sub
+                }
+            ],
+            UserPoolId: event.userPoolId,
+            Username: event.userName
+        }));
+        console.log("User attributes updated successfully");
+    } catch (err) {
+        console.log("Error updating user attributes: ", err);
+    }
 
     const payload = JSON.stringify({
         "type": "startRegistration",
@@ -117,7 +114,7 @@ async function getCreateCredentialsOptions(event, creds) {
 
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
         console.log("response: "+response);
         console.log("response payload: "+response.Payload);
         console.log("response payload jsonparse: "+JSON.parse(response.Payload));
@@ -166,7 +163,7 @@ async function getCredentialsOptions(username) {
 
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
         console.log("response: "+response);
         console.log("response payload: "+response.Payload);
         console.log("response payload jsonparse: "+JSON.parse(response.Payload));
@@ -217,7 +214,7 @@ async function getAllowedCredentialsForUser(userName, cognitoId){
     
     try {
         console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
         let payload = JSON.parse(JSON.parse(response.Payload));
         console.log("response payload: ", payload);
