@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { Button, Row, Col } from 'react-bootstrap';
 
 import { userActions } from '../_actions';
-import { history } from '../_helpers';
 import validate from 'validate.js';
 
 function LoginPage() {
@@ -14,7 +14,10 @@ function LoginPage() {
     const [invalidUsername, setInvalidUsername] = useState(undefined);
     const { username } = inputs;
     const loggingIn = useSelector(state => state.authentication.loggingIn);
+    const authUser = useSelector(state => state.authentication.user);
+    const authError = useSelector(state => state.authentication.error);
     const dispatch = useDispatch();
+    const navigate = useNavigate();
     var constraints = {
         username: {
             presence: true,
@@ -31,9 +34,20 @@ function LoginPage() {
     };
 
     // reset login status
-    useEffect(() => { 
-        dispatch(userActions.logout()); 
+    useEffect(() => {
+        dispatch(userActions.logout());
     }, []);
+
+    // Handle navigation after exists() action completes
+    useEffect(() => {
+        if (authUser) {
+            // User exists in Cognito - navigate to security key login
+            navigate('/loginWithSecurityKey');
+        } else if (authError) {
+            // User doesn't exist - navigate to register
+            navigate('/register');
+        }
+    }, [authUser, authError, navigate]);
 
     function handleChange(e) {
         const { name, value } = e.target;

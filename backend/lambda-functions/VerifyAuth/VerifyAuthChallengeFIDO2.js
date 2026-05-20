@@ -183,7 +183,8 @@ async function verifyMakeCredentialResponse(attestationResponse, event) {
         let response = await lambdaClient.send(new InvokeCommand(params));
 
         console.log("response: ", response);
-        let payload = JSON.parse(response.Payload);
+        const payloadString = new TextDecoder().decode(response.Payload);
+        let payload = JSON.parse(payloadString);
         console.log("response payload: ", payload);
         console.log("response payload.credential: ", payload.credential);
         
@@ -223,7 +224,8 @@ async function verifyAssertionResponse (assertionResponse, event) {
         let response = await lambdaClient.send(new InvokeCommand(params));
 
         console.log("response: ", response);
-        let payload = JSON.parse(response.Payload);
+        const payloadString = new TextDecoder().decode(response.Payload);
+        let payload = JSON.parse(payloadString);
         console.log("response payload: ", payload);
         
         return (payload.success === true);

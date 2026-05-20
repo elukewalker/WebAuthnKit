@@ -116,10 +116,11 @@ async function getCreateCredentialsOptions(event, creds) {
         console.log("invoking java-webauthn-server");
         let response = await lambdaClient.send(new InvokeCommand(params));
         console.log("response: "+response);
-        console.log("response payload: "+response.Payload);
-        console.log("response payload jsonparse: "+JSON.parse(response.Payload));
+        const payloadString = new TextDecoder().decode(response.Payload);
+        console.log("response payload: "+payloadString);
+        console.log("response payload jsonparse: "+JSON.parse(payloadString));
 
-        let startRegisterPayload = JSON.parse(JSON.parse(response.Payload));
+        let startRegisterPayload = JSON.parse(JSON.parse(payloadString));
         console.log("response payload jsonparse2: "+startRegisterPayload);
         
         const coseLookup = {"ES256": -7, "EdDSA": -8, "RS256": -257};
@@ -165,10 +166,11 @@ async function getCredentialsOptions(username) {
         console.log("invoking java-webauthn-server");
         let response = await lambdaClient.send(new InvokeCommand(params));
         console.log("response: "+response);
-        console.log("response payload: "+response.Payload);
-        console.log("response payload jsonparse: "+JSON.parse(response.Payload));
+        const payloadString = new TextDecoder().decode(response.Payload);
+        console.log("response payload: "+payloadString);
+        console.log("response payload jsonparse: "+JSON.parse(payloadString));
 
-        let startAuthPayload = JSON.parse(JSON.parse(response.Payload));
+        let startAuthPayload = JSON.parse(JSON.parse(payloadString));
         console.log("startAuthPayload: ", startAuthPayload);
 
         startAuthPayload.requestId = startAuthPayload.requestId.base64;
@@ -216,7 +218,8 @@ async function getAllowedCredentialsForUser(userName, cognitoId){
         console.log("invoking java-webauthn-server");
         let response = await lambdaClient.send(new InvokeCommand(params));
 
-        let payload = JSON.parse(JSON.parse(response.Payload));
+        const payloadString = new TextDecoder().decode(response.Payload);
+        let payload = JSON.parse(JSON.parse(payloadString));
         console.log("response payload: ", payload);
         userCreds.records = payload;
     } catch (err) {
