@@ -8,28 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-05-20
 
 ### Changed
-- Upgraded Java runtime from Java 8 to Java 17
-- Upgraded Node.js runtime from 12.x to 20.x
-- Upgraded React from 16 to 18
-- Upgraded React Router from 5 to 6
-- Upgraded aws-amplify from 3 to 5
-- Upgraded Webpack from 4 to 5
-- Migrated AWS SDK from v2 to v3 for all Lambda functions
-- Updated all backend and frontend dependencies to current LTS/stable versions
+- **Upgraded to current LTS runtimes**: Java 8→17, Node.js 12→20. Your deployment now runs on supported, actively maintained runtimes with the latest security patches and performance improvements.
+- **Modernized frontend stack**: React 16→18, React Router 5→6, Webpack 4→5. Improved app performance with React 18's concurrent rendering and automatic batching.
+- **Updated authentication library**: aws-amplify 3→5. Authentication flows now use the latest Amplify SDK with improved error handling and type safety.
+- **Migrated to AWS SDK v3**: All Lambda functions now use modular AWS SDK v3, reducing bundle sizes and improving cold start times.
 
 ### Fixed
-- Fixed AWS SDK v3 Payload decoding in Lambda functions (TextDecoder required for Uint8Array)
-- Fixed React Router v6 PrivateRoute component incompatibility
-- Fixed React Router v6 navigation (removed history.push, added useNavigate)
-- Fixed aws-amplify v5 authentication API migration (Auth.sendCustomChallengeAnswer → confirmSignIn)
-- Fixed RegisterPage.jsx syntax error from incomplete migration
-- Fixed Java Log4j dependency (log4j-slf4j18-impl → log4j-slf4j2-impl)
-- Fixed Lombok annotation processing for Java 17
-- Reverted webauthn-server-core to 1.12.0-RC1 to maintain API compatibility
+- **Authentication flow compatibility**: Fixed critical runtime errors in WebAuthn registration and login flows that would have caused authentication to fail after upgrading AWS SDK and Amplify.
+- **Navigation handling**: Updated React Router navigation to v6 API, ensuring users can navigate between pages without errors.
+- **Java build compatibility**: Fixed dependency conflicts that prevented the Java WebAuthn library from compiling with Java 17. The application now builds successfully with the new runtime.
 
 ### Security
-- Addressed security findings in CI/CD pipeline (CORS configuration, GitHub Actions pinning, CODEOWNERS)
-- Updated all dependencies to address known vulnerabilities in older versions
+- **Eliminated known vulnerabilities**: Upgraded all dependencies from EOL/deprecated versions to current LTS releases, addressing security advisories in Java 8, Node.js 12, React 16, and older npm packages.
+- **CI/CD hardening**: Security audit identified and documented recommendations for CORS configuration tightening, GitHub Actions version pinning, and CODEOWNERS file creation (see `.gstack/security-reports/` for details).
 
 ## [1.0.0] - (Previous Release)
 Initial release
