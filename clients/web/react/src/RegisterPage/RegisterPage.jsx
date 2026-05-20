@@ -28,9 +28,8 @@ function RegisterPage() {
         console.log("signInResult: ", signInResult);
         return (() => {
             // Note: history.action check removed - not available in React Router v6
-                // Code here will run when back button fires. Note that it's after the `return` for useEffect's callback; code before the return will fire after the page mounts, code after when it is about to unmount.
-                dispatch(credentialActions.completeUV());
-            }
+            // Code here will run when back button fires. Note that it's after the `return` for useEffect's callback; code before the return will fire after the page mounts, code after when it is about to unmount.
+            dispatch(credentialActions.completeUV());
         });
     }, []);
 
@@ -214,31 +213,31 @@ function RegisterPage() {
             console.log("sending authenticator response with sv-pin: ", challengeResponse);
             challengeResponse.pinCode = parseInt(fields.pin); 
             
-            Auth.sendCustomChallengeAnswer(cognitoUser, JSON.stringify(challengeResponse))
+            confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
             .then(user => {
-                console.log("uv sendCustomChallengeAnswer: ", user);
+                console.log("uv confirmSignIn: ", user);
 
-                Auth.currentSession()
-                .then(data => {
+                fetchAuthSession()
+                .then(session => {
                     dispatch(alertActions.success('Registration successful'));
                     let userData = {
                         "id": 1,
-                        "username": user.attributes.name,
-                        "token": data.getAccessToken().getJwtToken()
+                        "username": user.username || user.signInDetails?.loginId,
+                        "token": session.tokens?.accessToken?.toString()
                     }
                     localStorage.setItem('user', JSON.stringify(userData));
                     console.log("userData ", localStorage.getItem('user'));
                     navigate('/');
                 })
                 .catch(err => {
-                    console.log("currentSession error: ", err);
+                    console.log("fetchAuthSession error: ", err);
                     dispatch(alertActions.error("Something went wrong. ", err.message));
                     setSubmitted(false);
                 });
 
             })
             .catch(err => {
-                console.log("sendCustomChallengeAnswer error: ", err);
+                console.log("confirmSignIn error: ", err);
                 let message = "Invalid PIN";
                 dispatch(alertActions.error(message));
                 setSubmitted(false);

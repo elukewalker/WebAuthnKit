@@ -297,10 +297,10 @@ function LoginWithSecurityKeyPage() {
             setCognitoUser(cognitoUser);
             console.log("CognitoUser: ", cognitoUser);
 
-            Auth.sendCustomChallengeAnswer(cognitoUser, JSON.stringify({recoveryCode: code}))
+            confirmSignIn({ challengeResponse: JSON.stringify({recoveryCode: code}) })
                 .then(user => {
                     console.log(user);
-                    
+
                     fetchAuthSession()
                     .then(session => {
                         dispatch(alertActions.success('Authentication successful'));
@@ -314,14 +314,14 @@ function LoginWithSecurityKeyPage() {
                         navigate('/');
                     })
                     .catch(err => {
-                        console.log("currentSession error: ", err);
+                        console.log("fetchAuthSession error: ", err);
                         dispatch(alertActions.error("Something went wrong. ", err.message));
                         setSubmitted(false);
                     });
                 })
                 .catch(err => {
                     setSubmitted(false);
-                    console.log("sendCustomChallengeAnswer error: ", err);
+                    console.log("confirmSignIn error: ", err);
                     let msg = "Invalid recovery code";
                     dispatch(alertActions.error(msg));
                 });
