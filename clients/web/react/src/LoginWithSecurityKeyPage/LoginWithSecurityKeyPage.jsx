@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { userActions, credentialActions, alertActions } from '../_actions';
-import { history } from '../_helpers';
 import { ServerVerifiedPin } from '../_components';
+import { useNavigate } from 'react-router-dom';
 
 import { get, supported } from '@github/webauthn-json';
 import base64url from 'base64url';
-import { Auth } from 'aws-amplify';
+import { signIn, confirmSignIn, fetchAuthSession } from 'aws-amplify/auth';
 import { Button, Modal } from 'react-bootstrap';
 
 
@@ -18,6 +18,7 @@ function LoginWithSecurityKeyPage() {
     const webAuthnStartResponse = useSelector(state => state.authentication.webAuthnStartResponse);
     const defaultInvalidPIN = -1;
     const dispatch = useDispatch();
+    const navigate = useNavigate();
 
     // reset login status
     useEffect(() => { 
@@ -68,13 +69,13 @@ function LoginWithSecurityKeyPage() {
         setSubmitted(true);
 
         try {
-            let cognitoUser = await Auth.signIn(username);
+            let cognitoUser = await signIn({ username });
             setCognitoUser(cognitoUser);
             console.log("SignIn CognitoUser: ", cognitoUser);
 
             if(cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.create'){
                 dispatch(alertActions.error("Please register an account"));
-                history.push('/login');
+                navigate('/login');
                 return;
             } else if (cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.get') {
 
@@ -96,7 +97,7 @@ function LoginWithSecurityKeyPage() {
                 let challengeResponse = {
                     credential: assertionResponse,
                     requestId: request.requestId,
-                    inCode: defaultInvalidPIN
+                    pinCode: defaultInvalidPIN
                 };
                 console.log("challengeResponse: ", challengeResponse);
 
@@ -105,21 +106,21 @@ function LoginWithSecurityKeyPage() {
                 } else {
                     console.log("sending Custom Challenge Answer");
                     // to send the answer of the custom challenge
-                    Auth.sendCustomChallengeAnswer(cognitoUser, JSON.stringify(challengeResponse))
+                    confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
                     .then(user => {
                         console.log(user);
 
-                        Auth.currentSession()
-                            .then(data => {
+                        fetchAuthSession()
+                            .then(session => {
                                 dispatch(alertActions.success('Authentication successful'));
                                 let userData = {
                                     id: 1,
                                     username: user.attributes.name,
-                                    token: data.getAccessToken().getJwtToken()
+                                    token: session.tokens?.accessToken?.toString()
                                 }
                                 localStorage.setItem('user', JSON.stringify(userData));
                                 console.log("userData ", localStorage.getItem('user'));
-                                history.push('/');
+                                navigate('/');
                             })
                             .catch(err => {
                                 console.error("currentSession error: ", err);
@@ -169,30 +170,30 @@ function LoginWithSecurityKeyPage() {
         };
 
 
-        Auth.signIn(username)
+        signIn({ username })
         .then(user => {
             if(user.challengeName === 'CUSTOM_CHALLENGE' && user.challengeParam.type === 'webauthn.create'){
                 dispatch(alertActions.error("Please register an account"));
-                history.push('/login');
+                navigate('/login');
                 return;
             } else if (user.challengeName === 'CUSTOM_CHALLENGE'  && user.challengeParam.type === 'webauthn.get') {
                 // to send the answer of the custom challenge
                 console.log("uv sending Custom Challenge Answer");
-                Auth.sendCustomChallengeAnswer(user, JSON.stringify(challengeResponse))
+                confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
                     .then(user => {
                         console.log(user);
 
-                        Auth.currentSession()
-                            .then(data => {
+                        fetchAuthSession()
+                            .then(session => {
                                 dispatch(alertActions.success('Authentication successful'));
                                 let userData = {
                                     id: 1,
                                     username: user.attributes.name,
-                                    token: data.getAccessToken().getJwtToken()
+                                    token: session.tokens?.accessToken?.toString()
                                 }
                                 localStorage.setItem('user', JSON.stringify(userData));
                                 console.log("userData ", localStorage.getItem('user'));
-                                history.push('/');
+                                navigate('/');
                             })
                             .catch(err => {
                                 console.log("currentSession error: ", err);
@@ -250,21 +251,21 @@ function LoginWithSecurityKeyPage() {
             console.log("sending authenticator response with sv-pin: ", challengeResponse);
             challengeResponse.pinCode = parseInt(fields.pin); 
             
-            Auth.sendCustomChallengeAnswer(cognitoUser, JSON.stringify(challengeResponse))
+            confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
             .then(user => {
                 console.log("uv sendCustomChallengeAnswer: ", user);
 
-                Auth.currentSession()
-                .then(data => {
+                fetchAuthSession()
+                .then(session => {
                     dispatch(alertActions.success('Authentication successful'));
                     let userData = {
                         id: 1,
                         username: user.attributes.name,
-                        token: data.getAccessToken().getJwtToken()
+                        token: session.tokens?.accessToken?.toString()
                     }
                     localStorage.setItem('user', JSON.stringify(userData));
                     console.log("userData ", localStorage.getItem('user'));
-                    history.push('/');
+                    navigate('/');
                 })
                 .catch(err => {
                     console.log("currentSession error: ", err);
@@ -292,7 +293,7 @@ function LoginWithSecurityKeyPage() {
     async function handleRecoveryCode(code) {
         setSubmitted(true);
         try {
-            let cognitoUser = await Auth.signIn(username);
+            let cognitoUser = await signIn({ username });
             setCognitoUser(cognitoUser);
             console.log("CognitoUser: ", cognitoUser);
 
@@ -300,17 +301,17 @@ function LoginWithSecurityKeyPage() {
                 .then(user => {
                     console.log(user);
                     
-                    Auth.currentSession()
-                    .then(data => {
+                    fetchAuthSession()
+                    .then(session => {
                         dispatch(alertActions.success('Authentication successful'));
                         let userData = {
                             id: 1,
                             username: user.attributes.name,
-                            token: data.getAccessToken().getJwtToken()
+                            token: session.tokens?.accessToken?.toString()
                         }
                         localStorage.setItem('user', JSON.stringify(userData));
                         console.log("userData ", localStorage.getItem('user'));
-                        history.push('/');
+                        navigate('/');
                     })
                     .catch(err => {
                         console.log("currentSession error: ", err);

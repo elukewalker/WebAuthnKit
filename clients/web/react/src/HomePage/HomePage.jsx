@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef, Profiler } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { userActions, credentialActions, alertActions } from '../_actions';
-import { history } from '../_helpers';
 import { ServerVerifiedPin } from '../_components';
 
 import { create, supported } from '@github/webauthn-json';
 import { Button, Modal, Form, Alert } from 'react-bootstrap';
 import base64url from 'base64url';
 import cbor from 'cbor';
-import { Auth } from 'aws-amplify';
+import { getCurrentUser, fetchAuthSession, deleteUser as amplifyDeleteUser } from 'aws-amplify/auth';
 import axios from 'axios';
 import aws_exports from '../aws-exports';
 import validate from 'validate.js';
@@ -29,6 +28,7 @@ function HomePage() {
     const [jwt, setJwt] = useState(undefined);
     const svpinChangeProps = {type: "change", saveCallback: updatePin};
     const dispatch = useDispatch();
+    const navigate = useNavigate();
 
     function updatePin(fields) {
         dispatch(credentialActions.updatePin(fields));
@@ -45,7 +45,7 @@ function HomePage() {
     }, [alert]);
 
     function currentAuthenticatedUser() {
-        Auth.currentAuthenticatedUser()
+        getCurrentUser()
         .then(info => {
             console.log("currentAuthUser", info);
             setUserInfo(info);
@@ -55,9 +55,8 @@ function HomePage() {
                 dispatch(alertActions.error(err.message));
             });
 
-        Auth.currentSession().then(res => {
-            let idToken = res.getIdToken();
-            let idJwt = idToken.getJwtToken();
+        fetchAuthSession().then(session => {
+            let idJwt = session.tokens?.idToken?.toString();
             setJwt(idJwt);
             console.log(`myJwt: ${idJwt}`);
             dispatch(credentialActions.getAll(idJwt));
@@ -396,25 +395,16 @@ function HomePage() {
         const handleClose = () => {
             setShow(false);
         }
-        const handleDelete = () => {
+        const handleDelete = async () => {
             setShow(false);
-            Auth
-            .currentAuthenticatedUser()
-            .then((user) => new Promise((resolve, reject) => {
-                user.deleteUser(error => {
-                    if (error) {
-                        return reject(error);
-                    }
-                    dispatch(userActions.delete(jwt));
-                    history.push('/login');
-                    
-                    resolve();
-                });
-            }))
-            .catch(error => {
+            try {
+                await amplifyDeleteUser();
+                dispatch(userActions.delete(jwt));
+                navigate('/login');
+            } catch (error) {
                 console.error(error);
                 dispatch(alertActions.error(error.message));
-            });
+            }
         }
         const handleShow = () => {
             setShow(true);
