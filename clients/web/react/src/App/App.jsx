@@ -20,8 +20,6 @@ function App() {
     const alert = useSelector(state => state.alert);
     const dispatch = useDispatch();
 
-    //console.log(JSON.stringify(config));
-
     useEffect(() => {
         history.listen((location, action) => {
             // clear alert on location change

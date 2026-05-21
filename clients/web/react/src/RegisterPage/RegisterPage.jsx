@@ -25,7 +25,6 @@ function RegisterPage() {
     // reset login status
     useEffect(() => {
         dispatch(userActions.logout());
-        console.log("signInResult: ", signInResult);
         return (() => {
             // Note: history.action check removed - not available in React Router v6
             // Code here will run when back button fires. Note that it's after the `return` for useEffect's callback; code before the return will fire after the page mounts, code after when it is about to unmount.
@@ -43,7 +42,6 @@ function RegisterPage() {
 
         e.preventDefault();
 
-        console.log("signInResult: ", signInResult);
 
         // start Registration
         const randomString = (length) => [...Array(length)].map(() => (Math.floor(Math.random() * 36)).toString(36)).join('');
@@ -59,17 +57,14 @@ function RegisterPage() {
                     userAttributes: attributes
                 }
             });
-            console.log("SignUp: ", user);
         } catch (error) {
             // A user can get here if they come back to register after the initial registration was interrupted
-            console.log(error);
         }
 
         try {
 
             let cognitoUser = await signIn({ username });
             setCognitoUser(cognitoUser);
-            console.log("SignIn CognitoUser: ", cognitoUser);
 
             if(cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.get'){
                 dispatch(alertActions.error("You have already registered. Please sign in."));
@@ -79,44 +74,35 @@ function RegisterPage() {
 
             if (cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.create') {
 
-                console.log("registration request: " + JSON.stringify(cognitoUser.challengeParam, null, 2));
 
                 let request = JSON.parse(cognitoUser.challengeParam.publicKeyCredentialCreationOptions);
-                console.log("request: ", request);
 
                 if ( request.publicKeyCredentialCreationOptions === "error" ) {
                     let error = "Error generating public key creation options";
-                    console.error(error);
                     setSubmitted(false);
                     dispatch(alertActions.error(error.toString()));
                     return;
                 }
 
                 let publicKey = { "publicKey": request.publicKeyCredentialCreationOptions };
-                console.log("publicKey, ", publicKey);
 
                 let credential = await create(publicKey);
 
-                console.log("make credential response: " + JSON.stringify(credential));
 
                 let uv = getUV(credential.response.attestationObject);
-                console.log("uv: " + uv);
 
                 let challengeResponse = {
                     credential: credential,
                     requestId: request.requestId,
                     pinCode: defaultInvalidPIN
                 }; 
-                console.log("challengeResponse: ", challengeResponse);
 
-                if(uv == false) {
+                if(uv === false) {
                     dispatch(credentialActions.getUV(challengeResponse));
                 } else {
-                    console.log("confirmSignIn: ", cognitoUser);
                     // to send the answer of the custom challenge
                     const user = await confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
                     .then(user => {
-                        console.log(user);
 
                         fetchAuthSession()
                         .then(session => {
@@ -127,31 +113,25 @@ function RegisterPage() {
                                 "token": session.tokens?.accessToken?.toString()
                             }
                             localStorage.setItem('user', JSON.stringify(userData));
-                            console.log("userData ", localStorage.getItem('user'));
                             navigate('/');
                         })
                         .catch(err => {
-                            console.log("currentSession error: ", err);
                             dispatch(alertActions.error("Something went wrong. ", err.message));
                             setSubmitted(false);
                         });
 
                     })
                     .catch(err => {
-                        console.log(err);
                         setSubmitted(false);
                         dispatch(alertActions.error(err.message));
                     });
                 }
             } else {
                 let error = "Invalid challengeName and type";
-                console.error(error);
                 setSubmitted(false);
                 dispatch(alertActions.error(error));
             }
         } catch (error) {
-            console.error("signIn error");
-            console.error(error);
             setSubmitted(false);
             dispatch(alertActions.error(error.toString()));
         }
@@ -205,17 +185,14 @@ function RegisterPage() {
 
         function finishUVResponse(fields) {
             if(registering) {
-                console.log("Already sent the finish regisration request");
                 return;
             }
             
             let challengeResponse = finishUVRequest;
-            console.log("sending authenticator response with sv-pin: ", challengeResponse);
             challengeResponse.pinCode = parseInt(fields.pin); 
             
             confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
             .then(user => {
-                console.log("uv confirmSignIn: ", user);
 
                 fetchAuthSession()
                 .then(session => {
@@ -226,18 +203,15 @@ function RegisterPage() {
                         "token": session.tokens?.accessToken?.toString()
                     }
                     localStorage.setItem('user', JSON.stringify(userData));
-                    console.log("userData ", localStorage.getItem('user'));
                     navigate('/');
                 })
                 .catch(err => {
-                    console.log("fetchAuthSession error: ", err);
                     dispatch(alertActions.error("Something went wrong. ", err.message));
                     setSubmitted(false);
                 });
 
             })
             .catch(err => {
-                console.log("confirmSignIn error: ", err);
                 let message = "Invalid PIN";
                 dispatch(alertActions.error(message));
                 setSubmitted(false);

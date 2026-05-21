@@ -61,7 +61,6 @@ function LoginPage() {
 
         const result = validate({username: username}, constraints)
         if(result){
-            console.error("invalid username: ", result);
             setInvalidUsername(result.username.join(". "));
             return;
         } else {

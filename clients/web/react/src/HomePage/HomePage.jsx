@@ -47,18 +47,15 @@ function HomePage() {
     function currentAuthenticatedUser() {
         getCurrentUser()
         .then(info => {
-            console.log("currentAuthUser", info);
             setUserInfo(info);
         })
             .catch(err => {
-                console.log(err);
                 dispatch(alertActions.error(err.message));
             });
 
         fetchAuthSession().then(session => {
             let idJwt = session.tokens?.idToken?.toString();
             setJwt(idJwt);
-            console.log(`myJwt: ${idJwt}`);
             dispatch(credentialActions.getAll(idJwt));
         })
     }
@@ -145,25 +142,19 @@ function HomePage() {
             setIsResidentKey(value);
         }
         const register = () => {
-            console.log("register");
             setSubmitted(true);
-            console.log("nickname: ", nickname);
 
             axios.post('/users/credentials/fido2/register', {"nickname": nickname, "requireResidentKey": isResidentKey})
             .then( startRegistrationResponse => {
-                console.log(startRegistrationResponse);
     
                 const requestId = startRegistrationResponse.data.requestId;
     
                 let publicKey = { "publicKey": startRegistrationResponse.data.publicKeyCredentialCreationOptions };
-                console.log("pubKey: ", publicKey);
     
                 create(publicKey)
                 .then(makeCredentialResponse => {
-                    console.log("make credential response: " + JSON.stringify(makeCredentialResponse));
     
                     let uv = getUV(makeCredentialResponse.response.attestationObject);
-                    console.log("uv: " + uv);
 
                     let challengeResponse = {
                         credential: makeCredentialResponse,
@@ -172,10 +163,8 @@ function HomePage() {
                         pinCode: defaultInvalidPIN,
                         nickname: nickname
                     };
-                    console.log("challengeResponse: ", challengeResponse);
         
                     if(uv === true) {
-                        console.log("finishRegistration: ", challengeResponse);
                         dispatch(credentialActions.registerFinish(challengeResponse));
                     } else {
                         dispatch(credentialActions.getUV(challengeResponse));
@@ -183,12 +172,10 @@ function HomePage() {
                     
                 })
                 .catch(error => {
-                    console.error(error);
                     dispatch(alertActions.error(error.message));
                 });
             })
             .catch(error => {
-                console.error(error);
                 dispatch(alertActions.error(error.message));
             });
         }
@@ -299,7 +286,6 @@ function HomePage() {
 
         function finishUVResponse(fields) {
             let challengeResponse = finishUVRequest;
-            console.log("sending authenticator response with sv-pin: ", challengeResponse);
             challengeResponse.pinCode = parseInt(fields.pin); 
             dispatch(credentialActions.registerFinish(challengeResponse));
             dispatch(credentialActions.completeUV());
@@ -402,7 +388,6 @@ function HomePage() {
                 dispatch(userActions.delete(jwt));
                 navigate('/login');
             } catch (error) {
-                console.error(error);
                 dispatch(alertActions.error(error.message));
             }
         }

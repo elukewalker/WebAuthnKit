@@ -17,10 +17,8 @@ export const userService = {
 async function webAuthnStart() {
     try {
         const response = await axios.get('/users/credentials/fido2/authenticate');
-        console.log(response);
         return response.data;
     } catch (error) {
-        console.error(error);
         Promise.reject(error);
     }
 }
@@ -31,7 +29,6 @@ async function logout() {
     try {
         await signOut();
       } catch (error) {
-        console.log('Error while signing out', error);
       }
 }
 
@@ -56,10 +53,8 @@ async function _delete(jwt) {
     axios.defaults.headers.common['Authorization'] = jwt;
     try {
         const response = await axios.delete('/users');
-        console.log(response);
         return response.data;
     } catch (error) {
-        console.error(error);
         Promise.reject(error);
     }
 }
