@@ -18,10 +18,9 @@ const dbUtil    = require('./DatabaseController.js');
 const base64url = require('base64url');
 const cbor      = require('cbor');
 var crypto      = require('crypto');
-var AWS         = require('aws-sdk');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 var bcrypt      = require('bcryptjs');
-AWS.config.region = process.env.Region;
-var lambda = new AWS.Lambda();
+const lambdaClient = new LambdaClient({ region: process.env.Region });
 const validate  = require('validate.js');
 const defaultInvalidPIN = -1;
 const constraints = {
@@ -50,15 +49,12 @@ const saltRounds = 5;
 
 exports.handler = async (event, context) => {
     
-    console.log('RECEIVED Event: ', JSON.stringify(event, null, 2));
     
     try {
         var sub = (event.requestContext.authorizer) ? event.requestContext.authorizer.claims.sub : undefined;
-        console.log("sub: ",sub);
         let profile = undefined;
         if(sub) {
             profile = await dbUtil.getUserProfile(sub);
-            console.log(profile);
         }
 
         const resource = event.resource;
@@ -97,7 +93,6 @@ exports.handler = async (event, context) => {
 };
 
 function error(err) {
-    console.log(err);
         return {
             statusCode: 500,
             headers: {'Access-Control-Allow-Origin': '*'},
@@ -106,7 +101,6 @@ function error(err) {
 }
 
 function ok(data) {
-    console.log("Return data: ", data);
     return {
         statusCode: 200,
         headers: {'Access-Control-Allow-Origin': '*'},
@@ -120,7 +114,6 @@ async function getAll(username, id) {
         "type": "getRegistrationsByUsername",
         "username": username
     });
-    console.log("getRegistrationsByUsername request payload: "+payload);
     
     var params = {
         FunctionName: process.env.WebAuthnLibFunction, 
@@ -131,13 +124,11 @@ async function getAll(username, id) {
     
     let credentialsPayload = {};
     try {
-        console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
-        credentialsPayload.fido = JSON.parse(JSON.parse(response.Payload));
-        console.log("response payload: ", credentialsPayload);
+        const payloadString = new TextDecoder().decode(response.Payload);
+        credentialsPayload.fido = JSON.parse(JSON.parse(payloadString));
     } catch (err) {
-        console.log("error"+ err);
         return error(err);
     }
     
@@ -153,21 +144,15 @@ async function getAll(username, id) {
         credentialsPayload.recoveryCodesViewed = false;
         credentialsPayload.allRecoveryCodesUsed = false;
     }
-    console.log('recoveryCodes:', recoveryCodes);
-    console.log('recoveryCodesViewed:', credentialsPayload.recoveryCodesViewed);
-    console.log('allRecoveryCodesUsed:', credentialsPayload.allRecoveryCodesUsed);
     
-    console.log("response payload: ", credentialsPayload);
     
     return ok(credentialsPayload);
 }
 
 async function updateFIDO2CredentialNickname(username, body) {
     let data = JSON.parse(body);
-    console.log("updateFIDO2CredentialNickname data: ", data);
 
     let invalidResult = validate({nickname: data.credentialNickname.value}, constraints);
-    console.log("invalidResult: ", invalidResult);
     if(invalidResult && invalidResult.nickname) {
         return error(invalidResult.nickname.join(". "));
     }
@@ -178,7 +163,6 @@ async function updateFIDO2CredentialNickname(username, body) {
         "credentialId": data.credential.credentialId.base64,
         "nickname": data.credentialNickname.value,
     });
-    console.log("updateCredentialNickname request payload: "+payload);
     
     var params = {
         FunctionName: process.env.WebAuthnLibFunction, 
@@ -188,17 +172,13 @@ async function updateFIDO2CredentialNickname(username, body) {
     };
     
     try {
-        console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
-        console.log("response: ", response);
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
-        let payload = JSON.parse(JSON.parse(response.Payload));
+        let payload = JSON.parse(JSON.parse(new TextDecoder().decode(response.Payload)));
 
-        console.log("response payload: ", payload);
         
         return ok(payload);
     } catch (err) {
-        console.log("error"+ err);
         return error(err);
     }
 }
@@ -210,7 +190,6 @@ async function deleteFIDO2Credential(username, credentialId) {
         "username": username,
         "credentialId": credentialId,
     });
-    console.log("removeRegistrationByUsername request payload: "+payload);
     
     var params = {
         FunctionName: process.env.WebAuthnLibFunction, 
@@ -220,17 +199,17 @@ async function deleteFIDO2Credential(username, credentialId) {
     };
     
     try {
-        console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
-        let payload = JSON.parse(JSON.parse(response.Payload));
+        
 
-        console.log("response payload: ", payload);
+        const payloadString = new TextDecoder().decode(response.Payload);
+
+        let payload = JSON.parse(JSON.parse(payloadString));
+
         
         return ok(payload);
     } catch (err) {
-        //context.fail(err);
-        console.log("error"+ err);
         return error(err);
     }
 }
@@ -240,7 +219,6 @@ async function startUsernamelessAuthentication() {
         "type": "startAuthentication",
         //"username": username
     });
-    console.log("getCredentialsOptions request payload: ", payload);
 
     var params = {
         FunctionName: process.env.WebAuthnLibFunction, 
@@ -250,20 +228,13 @@ async function startUsernamelessAuthentication() {
     };
 
     try {
-        console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
-        console.log("response: "+response);
-        console.log("response payload: " + response.Payload);
-        console.log("response payload jsonparse: ", JSON.parse(response.Payload));
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
-        let startAuthPayload = JSON.parse(JSON.parse(response.Payload));
-        console.log("startAuthPayload: ", startAuthPayload);
+        let startAuthPayload = JSON.parse(JSON.parse(new TextDecoder().decode(response.Payload)));
 
         startAuthPayload.requestId = startAuthPayload.requestId.base64;
-        console.log("requestId: ", startAuthPayload.requestId);
         startAuthPayload.publicKeyCredentialRequestOptions.userVerification = startAuthPayload.publicKeyCredentialRequestOptions.userVerification.toLowerCase();
         startAuthPayload.publicKeyCredentialRequestOptions.challenge = startAuthPayload.publicKeyCredentialRequestOptions.challenge.base64;
-        console.log("challenge: ", startAuthPayload.publicKeyCredentialRequestOptions.challenge);
         if(startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials){
             startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials = startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials.map( (cred) => { 
                 cred.type = cred.type.toLowerCase().replace('_','-');
@@ -272,21 +243,17 @@ async function startUsernamelessAuthentication() {
             });
         }
         
-        console.log("response payload: ", startAuthPayload);
         
         return ok(startAuthPayload);
     } catch (err) {
-        console.log("error: "+ err);
         return error(err);
     }
 }
 
 async function startRegisterFIDO2Credential(profile, body, uid) {
-    console.log("startRegisterFIDO2Credential userId: "+profile.id+" body:",body);
     const jsonBody = JSON.parse(body);
 
     let invalidResult = validate({nickname: jsonBody.nickname}, constraints);
-    console.log("nickname invalidResult: ", invalidResult);
     if(invalidResult && invalidResult.nickname) {
         return error(invalidResult.nickname.join(". "));
     }
@@ -299,7 +266,6 @@ async function startRegisterFIDO2Credential(profile, body, uid) {
         "requireResidentKey": jsonBody.requireResidentKey,
         "uid": uid
     });
-    console.log("startRegistration request payload: "+payload);
     
     var params = {
         FunctionName: process.env.WebAuthnLibFunction, 
@@ -309,10 +275,13 @@ async function startRegisterFIDO2Credential(profile, body, uid) {
     };
     
     try {
-        console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
-        let startRegisterPayload = JSON.parse(JSON.parse(response.Payload));
+        
+
+        const payloadString = new TextDecoder().decode(response.Payload);
+
+        let startRegisterPayload = JSON.parse(JSON.parse(payloadString));
 
         const coseLookup = {"ES256": -7, "EdDSA": -8, "RS256": -257};
         
@@ -324,13 +293,11 @@ async function startRegisterFIDO2Credential(profile, body, uid) {
         startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams = startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams.map( (cred) => { 
             cred.type = cred.type.toLowerCase().replace('_','-');
             cred.alg = coseLookup[cred.alg];
-            console.log("cred: "+ JSON.stringify(cred));
             return cred;
         });
         startRegisterPayload.publicKeyCredentialCreationOptions.excludeCredentials = startRegisterPayload.publicKeyCredentialCreationOptions.excludeCredentials.map( (cred) => { 
             cred.type = cred.type.toLowerCase().replace('_','-');
             cred.id = cred.id.base64;
-            console.log("cred: "+ JSON.stringify(cred));
             return cred;
         });
         
@@ -341,23 +308,18 @@ async function startRegisterFIDO2Credential(profile, body, uid) {
             startRegisterPayload.pinSet = false;
         }
         
-        console.log("response payload: ", startRegisterPayload);
         
         return ok(startRegisterPayload);
     } catch (err) {
-        //context.fail(err);
-        console.log("error"+ err);
         return error(err);
     }
 }
 
 async function finishRegisterFIDO2Credential(userName, body) {
-    console.log("finishRegisterFIDO2Credential userName: "+userName+" body:",body);
     const jsonBody = JSON.parse(body);
 
     //Verify pin if UV = false
     if(!getUV(jsonBody.credential.response.attestationObject)) {
-        console.log("uv=false");
         let pinCodeHash = await dbUtil.getServerVerifiedPin(userName);
         if(pinCodeHash) {
             // SV-PIN exists, we need to verify it
@@ -368,36 +330,28 @@ async function finishRegisterFIDO2Credential(userName, body) {
             let pinCodeAnswer = parseInt(jsonBody.pinCode) || defaultInvalidPIN;
             
             const pinResult = validate({pin: pinCodeAnswer.toString()}, constraints);
-            console.log("pinResult: ", pinResult);
             if(!pinResult){
-                console.log("verifying pin code");
                 isPinVerified = await verifyServerPinCode(userName, pinCodeAnswer.toString());
             }
-            console.log("isPinVerified: ", isPinVerified);
             
             if(!isPinVerified){ 
                 let err = "Incorrect pin.";
-                console.log("error"+ err);
                 return error(err);
             }
 
-            console.log("pin is valid");
             
         } else {
             let pinCodeAnswer = parseInt(jsonBody.pinCode) || defaultInvalidPIN;
 
             const pinResult = validate({pin: pinCodeAnswer.toString()}, constraints);
-            console.log("pinResult: ", pinResult);
             if(pinResult){
                 let err = "Pin does not meet validation requirements. ";
-                console.log("Invalid PIN: ", pinResult.pin.join(". "));
                 return error(err);
             }
             
             let userId = await dbUtil.getUserIdFromUserName(userName);
             let hash = await bcrypt.hash(pinCodeAnswer.toString(), saltRounds);
             let result = await dbUtil.insertPin(userId, hash);
-            console.log("insert pin result: ", result);
 
         }
         
@@ -408,7 +362,6 @@ async function finishRegisterFIDO2Credential(userName, body) {
         "requestId": jsonBody.requestId,
         "credential": jsonBody.credential
     });
-    console.log("finishRegistration request payload: "+payload);
     
     var params = {
         FunctionName: process.env.WebAuthnLibFunction, 
@@ -418,16 +371,14 @@ async function finishRegisterFIDO2Credential(userName, body) {
     };
     
     try {
-        console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
-        console.log("response: ", response);
-        let payload = JSON.parse(response.Payload);
-        console.log("response payload: ", payload);
+        
+        const payloadString = new TextDecoder().decode(response.Payload);
+        let payload = JSON.parse(payloadString);
         
         return ok(payload);
     } catch (err) {
-        console.log("error"+ err);
         return error(err);
     }
 }
@@ -466,42 +417,37 @@ async function createRecoveryCodes(id) {
     for(i=0; i<5; i++) {
         codes.push(randomValueBase64(10));
     }
-    console.log("codes: ", codes);
 
     let hashedCodes = [];
     for(i=0; i<5; i++) {
         let hash = await bcrypt.hash(codes[i], saltRounds);
         hashedCodes.push(hash);
     }
-    console.log("hasedCodes: ", hashedCodes);
 
     let createCodes = await dbUtil.createRecoveryCodes(id, hashedCodes[0], hashedCodes[1], hashedCodes[2], hashedCodes[3], hashedCodes[4]);
-    console.log("createRecoveryCodes: ", createCodes);
     
     return ok(codes);
 }
 
 // Called from /users/codes/ GET API call
 async function listRecoveryCodes(id) {
-    console.log("listRecoveryCodes userId: "+id);
     let recoveryCodes = await dbUtil.listRecoveryCodes(id);
-    console.log("listRecoveryCodes: ", recoveryCodes);
 
     let count = 0;
     if (recoveryCodes.records && recoveryCodes.records.length > 0) {
-        if(recoveryCodes.records[0].code1Used == false) {
+        if(recoveryCodes.records[0].code1Used === false) {
             count++;
         }
-        if(recoveryCodes.records[0].code2Used == false) {
+        if(recoveryCodes.records[0].code2Used === false) {
             count++;
         }
-        if(recoveryCodes.records[0].code3Used == false) {
+        if(recoveryCodes.records[0].code3Used === false) {
             count++;
         }
-        if(recoveryCodes.records[0].code4Used == false) {
+        if(recoveryCodes.records[0].code4Used === false) {
             count++;
         }
-        if(recoveryCodes.records[0].code5Used == false) {
+        if(recoveryCodes.records[0].code5Used === false) {
             count++;
         }
     }
@@ -515,9 +461,7 @@ async function listRecoveryCodes(id) {
 // This function deletes all the users recover codes from the database and recreates them.
 // It then returns the newly generated codes from the listRecoveryCodes() functions
 async function resetRecoveryCodes(id) {
-    console.log("resetRecoveryCodes userId: "+id);
     let deleteResults = await dbUtil.deleteRecoveryCodes(id);
-    console.log("resetRecoveryCodes (delete): ", deleteResults);
     return await createRecoveryCodes(id);
 
 }
@@ -535,7 +479,6 @@ function randomValueBase64(len) {
 
 async function updatePin(userId, body) {
     let data = JSON.parse(body);
-    console.log("updatePin data");
     
     try {
         
@@ -543,14 +486,11 @@ async function updatePin(userId, body) {
         if(pinCodeHash) {
             
             const pinResult = validate({pin: data.pin.toString(), confirmPin: data.confirmPin.toString()}, constraints);
-            console.log("pinResult: ", pinResult);
             if(pinResult){
                 const err = "Invalid PIN: " + pinResult.pin.join(". ");
-                console.log(err);
                 return error(err);
             }
        
-            console.log("updating pin code");
             let newPinCodeHash = await bcrypt.hash(data.pin.toString(), saltRounds);
             return ok(await dbUtil.updatePin(userId, newPinCodeHash));
 
@@ -558,30 +498,25 @@ async function updatePin(userId, body) {
 
             //SV-PIN does not exist, we need to set it
             const pinResult = validate({pin: data.pin.toString(), confirmPin: data.confirmPin.toString()}, constraints);
-            console.log("pinResult: ", pinResult);
             if(pinResult){
                 const err = "Invalid PIN: " + pinResult.pin.join(". ");
-                console.log(err);
                 return error(err);
             }
             
             let hash = await bcrypt.hash(data.pin.toString(), saltRounds);
             let result = await dbUtil.insertPin(userId, hash);
-            console.log("insert pin result: ", result);
 
             return ok(result);
 
         }
         
     } catch(err) {
-        console.log("updatePin error: ", err);
         return error(err);
     }
 
 }
 
 async function deleteUser(username, userId, token) {
-    console.log("deleteUser: ", username);
 
     // 1. Remove all WebAuthn Registrations
     let allRegistrationsRemoved = false;
@@ -590,7 +525,6 @@ async function deleteUser(username, userId, token) {
         "type": "removeAllRegistrations",
         "username": username
     });
-    console.log("removeAllRegistrations request payload: "+payload);
     
     var params = {
         FunctionName: process.env.WebAuthnLibFunction, 
@@ -600,29 +534,27 @@ async function deleteUser(username, userId, token) {
     };
     
     try {
-        console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
-        let payload = JSON.parse(JSON.parse(response.Payload));
+        
 
-        console.log("response payload: ", payload);
+        const payloadString = new TextDecoder().decode(response.Payload);
+
+        let payload = JSON.parse(JSON.parse(payloadString));
+
         
         allRegistrationsRemoved = true;
     } catch (err) {
-        console.log("error"+ err);
     }
 
     // 2. Remove user's data from database
-    console.log("Calling delete user"); 
     let userDataRemoved = await dbUtil.deleteUser(userId);
 
     if (allRegistrationsRemoved && userDataRemoved) {
         let msg = "user successfully deleted";
-        console.log(msg);
         return ok(msg);
     } else {
         let msg = "error deleting user";
-        console.log(msg);
         return error(msg);
     }
 }

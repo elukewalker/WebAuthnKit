@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
-import { Router, Route, Switch, Redirect } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Jumbotron, Container, Row, Col } from 'react-bootstrap';
+import { Container, Row, Col } from 'react-bootstrap';
 
 import { history } from '../_helpers';
 import { alertActions } from '../_actions';
@@ -11,16 +11,14 @@ import { LoginPage } from '../LoginPage';
 import { LoginWithSecurityKeyPage } from '../LoginWithSecurityKeyPage';
 import { RegisterPage } from '../RegisterPage';
 
-import Amplify from 'aws-amplify';
+import { Amplify } from 'aws-amplify';
 import aws_exports from '../aws-exports';
 
-const config = Amplify.configure(aws_exports);
+Amplify.configure(aws_exports);
 
 function App() {
     const alert = useSelector(state => state.alert);
     const dispatch = useDispatch();
-
-    //console.log(JSON.stringify(config));
 
     useEffect(() => {
         history.listen((location, action) => {
@@ -36,15 +34,15 @@ function App() {
                         {alert.message &&
                             <div className={`alert ${alert.type}`}>{alert.message}</div>
                         }
-                        <Router history={history}>
-                            <Switch>
-                                <PrivateRoute exact path="/" component={HomePage} />
-                                <Route path="/login" component={LoginPage} />
-                                <Route path="/loginWithSecurityKey" component={LoginWithSecurityKeyPage} />
-                                <Route path="/register" component={RegisterPage} />
-                                <Redirect from="*" to="/" />
-                            </Switch>
-                        </Router>
+                        <BrowserRouter>
+                            <Routes>
+                                <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
+                                <Route path="/login" element={<LoginPage />} />
+                                <Route path="/loginWithSecurityKey" element={<LoginWithSecurityKeyPage />} />
+                                <Route path="/register" element={<RegisterPage />} />
+                                <Route path="*" element={<Navigate to="/" replace />} />
+                            </Routes>
+                        </BrowserRouter>
                 
                 </div>
             </div>

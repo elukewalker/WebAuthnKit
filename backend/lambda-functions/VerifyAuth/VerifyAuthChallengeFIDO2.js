@@ -5,9 +5,10 @@
 
 'use strict';
 
-var AWS = require('aws-sdk');
-AWS.config.region = process.env.Region;
-var lambda = new AWS.Lambda();
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+const { CognitoIdentityProviderClient, AdminUpdateUserAttributesCommand } = require('@aws-sdk/client-cognito-identity-provider');
+const lambdaClient = new LambdaClient({ region: process.env.Region });
+const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.Region });
 const base64url = require('base64url');
 const cbor      = require('cbor');
 const dbUtil    = require('./DatabaseController.js');
@@ -33,18 +34,15 @@ const constraints = {
 
 // Main entry function
 exports.handler = async (event) => {
-    console.log('RECEIVED Event: ', JSON.stringify(event, null, 2));
 
     // Parsing the create() or get() response from client
     let keyResponse = JSON.parse(event.request.challengeAnswer) || null;
-    console.log('Key Response: ', JSON.stringify(keyResponse, null, 2));
     
     let userName = event.userName;
     let authType = event.request.privateChallengeParameters || null;
     
     // REGISTRATION
     if(authType.type === 'webauthn.create'){
-        console.log('processing webauthn.create() REGISTRATION response');
         
         //Verify pin if UV = false
         let attestationBuffer = base64url.toBuffer(keyResponse.credential.response.attestationObject);
@@ -55,15 +53,12 @@ exports.handler = async (event) => {
             
             // If there's a pinCode zero or less then fail registration
             const pinResult = validate({pin: pinCodeAnswer.toString()}, constraints);
-            console.log("pinResult: ", pinResult);
             if(pinResult){
-                console.log('FAILED pinCode: UV=false and user did not provide pinCode');
                 event.response.answerCorrect = false;
                 
                 // Assrtion passed but pinCode failed. Set current challenge to PINCODE
                 event.response.challengeName = 'PINCODE';
                 
-                console.log('RETURNED Event: ', JSON.stringify(event, null, 2));
                 return event;
             }
             
@@ -72,43 +67,33 @@ exports.handler = async (event) => {
         }
     
         if(await verifyMakeCredentialResponse(keyResponse, event)) {
-            console.log('verifyMakeCredentialResponse(attestationResponse) returned TRUE');
             event.response.answerCorrect = true;
         } else { // If Attestation fails validation
-            console.log('verifyMakeCredentialResponse(attestationResponse) returned FALSE');
             event.response.answerCorrect = false;
         }
 
-        const cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider({
-            apiVersion: '2016-04-18'
-          });
-        cognitoidentityserviceprovider.adminUpdateUserAttributes(
-          {
-            UserAttributes: [
-              {
-                Name: 'preferred_username',
-                Value: event.request.userAttributes.sub
-              }
-            ],
-            UserPoolId: event.userPoolId,
-            Username: event.userName
-          },
-          function(err, data) {
-            console.log("err: ", err);
-            console.log("data: ", data);
-          }
-        );
+        try {
+            await cognitoClient.send(new AdminUpdateUserAttributesCommand({
+                UserAttributes: [
+                    {
+                        Name: 'preferred_username',
+                        Value: event.request.userAttributes.sub
+                    }
+                ],
+                UserPoolId: event.userPoolId,
+                Username: event.userName
+            }));
+        } catch (err) {
+        }
     
     // AUTHENTICATION
     } else if (authType.type === 'webauthn.get') {
-        console.log('processing webauthn.get() AUTHENTICATION response');
         
         if (keyResponse.recoveryCode) {
             if(await dbUtil.validateRecoveryCode(userName, keyResponse.recoveryCode)) {
                 event.response.answerCorrect = true;
                 return event;
             } else {
-                console.log('FAILED invalid recovery code');
                 event.response.answerCorrect = false;
                 
                 // Assrtion passed but pinCode failed. Set current challenge to PINCODE
@@ -118,12 +103,10 @@ exports.handler = async (event) => {
         }
         
         if(await verifyAssertionResponse(keyResponse, event)) {
-            console.log('verifyAssertion(keyResponse) returned TRUE. Checking UV...');
             
             let buffer = base64url.toBuffer(keyResponse.credential.response.authenticatorData);
             let uv = await getUV(buffer);
             if (uv === true) { // If UV=true, continue and succeed
-                console.log('UserVerification (UV) = true');
                 event.response.answerCorrect = true;
             
             } else { // If assertion passed and UV=false, we need to look for pin or prompt for pin as an additional challenge/response
@@ -135,16 +118,13 @@ exports.handler = async (event) => {
                 
                 // If it is a valid pin, verify given pinCode with expected pinCode
                 const pinResult = validate({pin: pinCodeAnswer.toString()}, constraints);
-                console.log("pinResult: ", pinResult);
                 if(!pinResult){
                     isPinVerified = await dbUtil.verifyServerPinCode(userName, pinCodeAnswer.toString());
                 }
                 
                 if(isPinVerified){ 
-                    console.log('SUCCESSFUL pinCode: UV=false but provided pinCode matches expected user network pinCode');
                     event.response.answerCorrect = true;
                 } else { // If the pin code was NOT provided OR doesn't match, return with challenge looking for pin code
-                    console.log('FAILED pinCode: UV=false and user did not provide pinCode or code did not match expected network pinCode');
                     event.response.answerCorrect = false;
                     
                     // Assrtion passed but pinCode failed. Set current challenge to PINCODE
@@ -152,14 +132,11 @@ exports.handler = async (event) => {
                 }
             }
         } else {
-            console.log('verifyAssertion(assertionResponse) returned FALSE');
             event.response.answerCorrect = false;
         }
     } else {
-        console.log('Failed to determine if this was a webauthn.create or webauthn.get');
     }
     
-    console.log('RETURNED Event: ', JSON.stringify(event, null, 2));
     
     return event;
 };
@@ -172,7 +149,6 @@ async function verifyMakeCredentialResponse(attestationResponse, event) {
         "requestId": attestationResponse.requestId,
         "credential": attestationResponse.credential
     });
-    console.log("request payload: "+payload);
     
     var params = {
         FunctionName: process.env.WebAuthnLibFunction, 
@@ -182,23 +158,17 @@ async function verifyMakeCredentialResponse(attestationResponse, event) {
     };
     
     try {
-        console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
-        console.log("response: ", response);
-        let payload = JSON.parse(response.Payload);
-        console.log("response payload: ", payload);
-        console.log("response payload.credential: ", payload.credential);
+        const payloadString = new TextDecoder().decode(response.Payload);
+        let payload = JSON.parse(payloadString);
         
         if(payload.credential) {
-            console.log("register success");
             return true;
         } else {
-            console.log("register fail");
             return false;
         }
     } catch (err) {
-        console.log("error"+ err);
         return false;
     }
 }
@@ -212,7 +182,6 @@ async function verifyAssertionResponse (assertionResponse, event) {
         "requestId": assertionResponse.requestId,
         "credential": assertionResponse.credential
     });
-    console.log("request payload: "+payload);
 
     var params = {
         FunctionName: process.env.WebAuthnLibFunction, 
@@ -222,16 +191,13 @@ async function verifyAssertionResponse (assertionResponse, event) {
     };
 
     try {
-        console.log("invoking java-webauthn-server");
-        let response = await lambda.invoke(params).promise();
+        let response = await lambdaClient.send(new InvokeCommand(params));
 
-        console.log("response: ", response);
-        let payload = JSON.parse(response.Payload);
-        console.log("response payload: ", payload);
+        const payloadString = new TextDecoder().decode(response.Payload);
+        let payload = JSON.parse(payloadString);
         
         return (payload.success === true);
     } catch (err) {
-        console.log("error"+ err);
         return false;
     }
 }

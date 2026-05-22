@@ -1,7 +1,7 @@
 import config from 'config';
 import { authHeader } from '../_helpers';
 
-import { Auth } from 'aws-amplify';
+import { signIn, signOut } from 'aws-amplify/auth';
 import axios from 'axios';
 import aws_exports from '../aws-exports';
 
@@ -17,10 +17,8 @@ export const userService = {
 async function webAuthnStart() {
     try {
         const response = await axios.get('/users/credentials/fido2/authenticate');
-        console.log(response);
         return response.data;
     } catch (error) {
-        console.error(error);
         Promise.reject(error);
     }
 }
@@ -29,16 +27,15 @@ async function logout() {
     // remove user from local storage to log user out
     localStorage.removeItem('user');
     try {
-        await Auth.signOut();
+        await signOut();
       } catch (error) {
-        console.log('Error while signing out', error);
       }
 }
 
 async function exists(username) {
     const _username = username.toLowerCase();
     try {
-        let cognitoUser = await Auth.signIn(_username);
+        let cognitoUser = await signIn({ username: _username });
         if (cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.get') {
             return cognitoUser;
         } else {
@@ -56,10 +53,8 @@ async function _delete(jwt) {
     axios.defaults.headers.common['Authorization'] = jwt;
     try {
         const response = await axios.delete('/users');
-        console.log(response);
         return response.data;
     } catch (error) {
-        console.error(error);
         Promise.reject(error);
     }
 }

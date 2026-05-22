@@ -39,15 +39,17 @@ function exists(username) {
 
         userService.exists(username)
             .then(
-                user => { 
+                user => {
                     // Exists in cognito
                     dispatch(success(user));
-                    history.push('/loginWithSecurityKey');
+                    // Navigation removed - incompatible with React Router v6
+                    // LoginPage component should use useNavigate() based on action success
                 },
                 error => {
                     // Does not exist in cognito
                     dispatch(failure(error));
-                    history.push('/register');
+                    // Navigation removed - incompatible with React Router v6
+                    // LoginPage component should use useNavigate() based on action failure
                 }
             );
     };

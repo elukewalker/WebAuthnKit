@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useHistory } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Button, Row, Col } from 'react-bootstrap';
 
@@ -9,14 +9,14 @@ import { ServerVerifiedPin } from '../_components';
 import { create, supported } from '@github/webauthn-json';
 import base64url from 'base64url';
 import cbor from 'cbor';
-import { Auth } from 'aws-amplify';
+import { signUp, signIn, confirmSignIn, fetchAuthSession } from 'aws-amplify/auth';
 
 function RegisterPage() {
 
     const username = localStorage.getItem('username');
     const [submitted, setSubmitted] = useState(false);
     const signInResult = useSelector(state => state.authentication.signInResult);
-    const history = useHistory();
+    const navigate = useNavigate();
     const [cognitoUser, setCognitoUser] = useState({});
     const defaultInvalidPIN = -1;
     const dispatch = useDispatch();
@@ -25,12 +25,10 @@ function RegisterPage() {
     // reset login status
     useEffect(() => {
         dispatch(userActions.logout());
-        console.log("signInResult: ", signInResult);
         return (() => {
-            if (history.action === "POP") {
-                // Code here will run when back button fires. Note that it's after the `return` for useEffect's callback; code before the return will fire after the page mounts, code after when it is about to unmount.
-                dispatch(credentialActions.completeUV());
-            }
+            // Note: history.action check removed - not available in React Router v6
+            // Code here will run when back button fires. Note that it's after the `return` for useEffect's callback; code before the return will fire after the page mounts, code after when it is about to unmount.
+            dispatch(credentialActions.completeUV());
         });
     }, []);
 
@@ -44,7 +42,6 @@ function RegisterPage() {
 
         e.preventDefault();
 
-        console.log("signInResult: ", signInResult);
 
         // start Registration
         const randomString = (length) => [...Array(length)].map(() => (Math.floor(Math.random() * 36)).toString(36)).join('');
@@ -53,104 +50,88 @@ function RegisterPage() {
         const attributes =  {"name": usernameLower};
 
         try {
-            const { user } = await Auth.signUp({
+            const { user } = await signUp({
                 username,
                 password,
-                attributes
+                options: {
+                    userAttributes: attributes
+                }
             });
-            console.log("SignUp: ", user);
         } catch (error) {
             // A user can get here if they come back to register after the initial registration was interrupted
-            console.log(error);
         }
 
         try {
 
-            let cognitoUser = await Auth.signIn(username);
+            let cognitoUser = await signIn({ username });
             setCognitoUser(cognitoUser);
-            console.log("SignIn CognitoUser: ", cognitoUser);
 
             if(cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.get'){
                 dispatch(alertActions.error("You have already registered. Please sign in."));
-                history.push('/login');
+                navigate('/login');
                 return;
             }
 
             if (cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.create') {
 
-                console.log("registration request: " + JSON.stringify(cognitoUser.challengeParam, null, 2));
 
                 let request = JSON.parse(cognitoUser.challengeParam.publicKeyCredentialCreationOptions);
-                console.log("request: ", request);
 
                 if ( request.publicKeyCredentialCreationOptions === "error" ) {
                     let error = "Error generating public key creation options";
-                    console.error(error);
                     setSubmitted(false);
                     dispatch(alertActions.error(error.toString()));
                     return;
                 }
 
                 let publicKey = { "publicKey": request.publicKeyCredentialCreationOptions };
-                console.log("publicKey, ", publicKey);
 
                 let credential = await create(publicKey);
 
-                console.log("make credential response: " + JSON.stringify(credential));
 
                 let uv = getUV(credential.response.attestationObject);
-                console.log("uv: " + uv);
 
                 let challengeResponse = {
                     credential: credential,
                     requestId: request.requestId,
                     pinCode: defaultInvalidPIN
                 }; 
-                console.log("challengeResponse: ", challengeResponse);
 
-                if(uv == false) {
+                if(uv === false) {
                     dispatch(credentialActions.getUV(challengeResponse));
                 } else {
-                    console.log("sendCustomChallengeAnswer: ", cognitoUser);
                     // to send the answer of the custom challenge
-                    const user = await Auth.sendCustomChallengeAnswer(cognitoUser, JSON.stringify(challengeResponse))
+                    const user = await confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
                     .then(user => {
-                        console.log(user);
-                        
-                        Auth.currentSession()
-                        .then(data => {
+
+                        fetchAuthSession()
+                        .then(session => {
                             dispatch(alertActions.success('Registration successful'));
                             let userData = {
                                 "id": 1,
-                                "username": user.attributes.name,
-                                "token": data.getAccessToken().getJwtToken()
+                                "username": user.username || user.signInDetails?.loginId,
+                                "token": session.tokens?.accessToken?.toString()
                             }
                             localStorage.setItem('user', JSON.stringify(userData));
-                            console.log("userData ", localStorage.getItem('user'));
-                            history.push('/');
+                            navigate('/');
                         })
                         .catch(err => {
-                            console.log("currentSession error: ", err);
                             dispatch(alertActions.error("Something went wrong. ", err.message));
                             setSubmitted(false);
                         });
 
                     })
                     .catch(err => {
-                        console.log(err);
                         setSubmitted(false);
                         dispatch(alertActions.error(err.message));
                     });
                 }
             } else {
                 let error = "Invalid challengeName and type";
-                console.error(error);
                 setSubmitted(false);
                 dispatch(alertActions.error(error));
             }
         } catch (error) {
-            console.error("signIn error");
-            console.error(error);
             setSubmitted(false);
             dispatch(alertActions.error(error.toString()));
         }
@@ -204,39 +185,33 @@ function RegisterPage() {
 
         function finishUVResponse(fields) {
             if(registering) {
-                console.log("Already sent the finish regisration request");
                 return;
             }
             
             let challengeResponse = finishUVRequest;
-            console.log("sending authenticator response with sv-pin: ", challengeResponse);
             challengeResponse.pinCode = parseInt(fields.pin); 
             
-            Auth.sendCustomChallengeAnswer(cognitoUser, JSON.stringify(challengeResponse))
+            confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
             .then(user => {
-                console.log("uv sendCustomChallengeAnswer: ", user);
 
-                Auth.currentSession()
-                .then(data => {
+                fetchAuthSession()
+                .then(session => {
                     dispatch(alertActions.success('Registration successful'));
                     let userData = {
                         "id": 1,
-                        "username": user.attributes.name,
-                        "token": data.getAccessToken().getJwtToken()
+                        "username": user.username || user.signInDetails?.loginId,
+                        "token": session.tokens?.accessToken?.toString()
                     }
                     localStorage.setItem('user', JSON.stringify(userData));
-                    console.log("userData ", localStorage.getItem('user'));
-                    history.push('/');
+                    navigate('/');
                 })
                 .catch(err => {
-                    console.log("currentSession error: ", err);
                     dispatch(alertActions.error("Something went wrong. ", err.message));
                     setSubmitted(false);
                 });
 
             })
             .catch(err => {
-                console.log("sendCustomChallengeAnswer error: ", err);
                 let message = "Invalid PIN";
                 dispatch(alertActions.error(message));
                 setSubmitted(false);

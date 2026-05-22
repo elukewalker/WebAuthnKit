@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef, Profiler } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { userActions, credentialActions, alertActions } from '../_actions';
-import { history } from '../_helpers';
 import { ServerVerifiedPin } from '../_components';
 
 import { create, supported } from '@github/webauthn-json';
 import { Button, Modal, Form, Alert } from 'react-bootstrap';
 import base64url from 'base64url';
 import cbor from 'cbor';
-import { Auth } from 'aws-amplify';
+import { getCurrentUser, fetchAuthSession, deleteUser as amplifyDeleteUser } from 'aws-amplify/auth';
 import axios from 'axios';
 import aws_exports from '../aws-exports';
 import validate from 'validate.js';
@@ -29,6 +28,7 @@ function HomePage() {
     const [jwt, setJwt] = useState(undefined);
     const svpinChangeProps = {type: "change", saveCallback: updatePin};
     const dispatch = useDispatch();
+    const navigate = useNavigate();
 
     function updatePin(fields) {
         dispatch(credentialActions.updatePin(fields));
@@ -45,21 +45,17 @@ function HomePage() {
     }, [alert]);
 
     function currentAuthenticatedUser() {
-        Auth.currentAuthenticatedUser()
+        getCurrentUser()
         .then(info => {
-            console.log("currentAuthUser", info);
             setUserInfo(info);
         })
             .catch(err => {
-                console.log(err);
                 dispatch(alertActions.error(err.message));
             });
 
-        Auth.currentSession().then(res => {
-            let idToken = res.getIdToken();
-            let idJwt = idToken.getJwtToken();
+        fetchAuthSession().then(session => {
+            let idJwt = session.tokens?.idToken?.toString();
             setJwt(idJwt);
-            console.log(`myJwt: ${idJwt}`);
             dispatch(credentialActions.getAll(idJwt));
         })
     }
@@ -146,25 +142,19 @@ function HomePage() {
             setIsResidentKey(value);
         }
         const register = () => {
-            console.log("register");
             setSubmitted(true);
-            console.log("nickname: ", nickname);
 
             axios.post('/users/credentials/fido2/register', {"nickname": nickname, "requireResidentKey": isResidentKey})
             .then( startRegistrationResponse => {
-                console.log(startRegistrationResponse);
     
                 const requestId = startRegistrationResponse.data.requestId;
     
                 let publicKey = { "publicKey": startRegistrationResponse.data.publicKeyCredentialCreationOptions };
-                console.log("pubKey: ", publicKey);
     
                 create(publicKey)
                 .then(makeCredentialResponse => {
-                    console.log("make credential response: " + JSON.stringify(makeCredentialResponse));
     
                     let uv = getUV(makeCredentialResponse.response.attestationObject);
-                    console.log("uv: " + uv);
 
                     let challengeResponse = {
                         credential: makeCredentialResponse,
@@ -173,10 +163,8 @@ function HomePage() {
                         pinCode: defaultInvalidPIN,
                         nickname: nickname
                     };
-                    console.log("challengeResponse: ", challengeResponse);
         
                     if(uv === true) {
-                        console.log("finishRegistration: ", challengeResponse);
                         dispatch(credentialActions.registerFinish(challengeResponse));
                     } else {
                         dispatch(credentialActions.getUV(challengeResponse));
@@ -184,12 +172,10 @@ function HomePage() {
                     
                 })
                 .catch(error => {
-                    console.error(error);
                     dispatch(alertActions.error(error.message));
                 });
             })
             .catch(error => {
-                console.error(error);
                 dispatch(alertActions.error(error.message));
             });
         }
@@ -300,7 +286,6 @@ function HomePage() {
 
         function finishUVResponse(fields) {
             let challengeResponse = finishUVRequest;
-            console.log("sending authenticator response with sv-pin: ", challengeResponse);
             challengeResponse.pinCode = parseInt(fields.pin); 
             dispatch(credentialActions.registerFinish(challengeResponse));
             dispatch(credentialActions.completeUV());
@@ -396,25 +381,15 @@ function HomePage() {
         const handleClose = () => {
             setShow(false);
         }
-        const handleDelete = () => {
+        const handleDelete = async () => {
             setShow(false);
-            Auth
-            .currentAuthenticatedUser()
-            .then((user) => new Promise((resolve, reject) => {
-                user.deleteUser(error => {
-                    if (error) {
-                        return reject(error);
-                    }
-                    dispatch(userActions.delete(jwt));
-                    history.push('/login');
-                    
-                    resolve();
-                });
-            }))
-            .catch(error => {
-                console.error(error);
+            try {
+                await amplifyDeleteUser();
+                dispatch(userActions.delete(jwt));
+                navigate('/login');
+            } catch (error) {
                 dispatch(alertActions.error(error.message));
-            });
+            }
         }
         const handleShow = () => {
             setShow(true);
