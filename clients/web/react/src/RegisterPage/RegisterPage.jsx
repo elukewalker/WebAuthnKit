@@ -25,12 +25,24 @@ function RegisterPage() {
     // reset login status
     useEffect(() => {
         dispatch(userActions.logout());
-        return (() => {
-            // Note: history.action check removed - not available in React Router v6
-            // Code here will run when back button fires. Note that it's after the `return` for useEffect's callback; code before the return will fire after the page mounts, code after when it is about to unmount.
-            dispatch(credentialActions.completeUV());
-        });
-    }, []);
+
+        // Track if navigation is via back button
+        let isBackNavigation = false;
+
+        const handlePopState = () => {
+            isBackNavigation = true;
+        };
+
+        window.addEventListener('popstate', handlePopState);
+
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+            // Only dispatch completeUV if navigating back
+            if (isBackNavigation) {
+                dispatch(credentialActions.completeUV());
+            }
+        };
+    }, [dispatch]);
 
     async function handleWebAuthn(e) {
         if(submitted === true) {
@@ -63,19 +75,19 @@ function RegisterPage() {
 
         try {
 
-            let cognitoUser = await signIn({ username });
-            setCognitoUser(cognitoUser);
+            let signInResult = await signIn({ username });
+            setCognitoUser(signInResult);
 
-            if(cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.get'){
+            if(signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.get'){
                 dispatch(alertActions.error("You have already registered. Please sign in."));
                 navigate('/login');
                 return;
             }
 
-            if (cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.create') {
+            if (signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.create') {
 
 
-                let request = JSON.parse(cognitoUser.challengeParam.publicKeyCredentialCreationOptions);
+                let request = JSON.parse(signInResult.nextStep.additionalInfo.publicKeyCredentialCreationOptions);
 
                 if ( request.publicKeyCredentialCreationOptions === "error" ) {
                     let error = "Error generating public key creation options";
@@ -101,22 +113,19 @@ function RegisterPage() {
                     dispatch(credentialActions.getUV(challengeResponse));
                 } else {
                     // to send the answer of the custom challenge
-                    const user = await confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
-                    .then(user => {
-
-                        fetchAuthSession()
-                        .then(session => {
-                            dispatch(alertActions.success('Registration successful'));
-                            let userData = {
-                                "id": 1,
-                                "username": user.username || user.signInDetails?.loginId,
-                                "token": session.tokens?.accessToken?.toString()
-                            }
-                            localStorage.setItem('user', JSON.stringify(userData));
-                            navigate('/');
-                        })
-                        .catch(err => {
-                            dispatch(alertActions.error("Something went wrong. ", err.message));
+                    try {
+                        const user = await confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) });
+                        const session = await fetchAuthSession();
+                        dispatch(alertActions.success('Registration successful'));
+                        let userData = {
+                            "id": 1,
+                            "username": user.username || user.signInDetails?.loginId,
+                            "token": session.tokens?.accessToken?.toString()
+                        }
+                        localStorage.setItem('user', JSON.stringify(userData));
+                        navigate('/');
+                    } catch (err) {
+                        dispatch(alertActions.error("Something went wrong. ", err.message));
                             setSubmitted(false);
                         });
 

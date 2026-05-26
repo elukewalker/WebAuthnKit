@@ -19,7 +19,7 @@ async function webAuthnStart() {
         const response = await axios.get('/users/credentials/fido2/authenticate');
         return response.data;
     } catch (error) {
-        Promise.reject(error);
+        return Promise.reject(error);
     }
 }
 
@@ -35,12 +35,12 @@ async function logout() {
 async function exists(username) {
     const _username = username.toLowerCase();
     try {
-        let cognitoUser = await signIn({ username: _username });
-        if (cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.get') {
-            return cognitoUser;
+        let signInResult = await signIn({ username: _username });
+        if (signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.get') {
+            return signInResult;
         } else {
             // user exists but no credentials, registration may have been interrupted
-            return _error(cognitoUser);
+            return _error(signInResult);
         }
     } catch (error) {
         return _error(error);
@@ -55,7 +55,7 @@ async function _delete(jwt) {
         const response = await axios.delete('/users');
         return response.data;
     } catch (error) {
-        Promise.reject(error);
+        return Promise.reject(error);
     }
 }
 

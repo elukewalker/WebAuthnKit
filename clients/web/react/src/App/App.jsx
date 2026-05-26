@@ -1,9 +1,8 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Container, Row, Col } from 'react-bootstrap';
 
-import { history } from '../_helpers';
 import { alertActions } from '../_actions';
 import { PrivateRoute } from '../_components';
 import { HomePage } from '../HomePage';
@@ -16,16 +15,21 @@ import aws_exports from '../aws-exports';
 
 Amplify.configure(aws_exports);
 
-function App() {
-    const alert = useSelector(state => state.alert);
+// Component to handle alert clearing on route change
+function AlertClearer() {
+    const location = useLocation();
     const dispatch = useDispatch();
 
     useEffect(() => {
-        history.listen((location, action) => {
-            // clear alert on location change
-            dispatch(alertActions.clear());
-        });
-    }, []);
+        // clear alert on location change
+        dispatch(alertActions.clear());
+    }, [location, dispatch]);
+
+    return null;
+}
+
+function App() {
+    const alert = useSelector(state => state.alert);
 
     return (
         <div className="jumbotron">
@@ -35,6 +39,7 @@ function App() {
                             <div className={`alert ${alert.type}`}>{alert.message}</div>
                         }
                         <BrowserRouter>
+                            <AlertClearer />
                             <Routes>
                                 <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
                                 <Route path="/login" element={<LoginPage />} />
@@ -43,7 +48,7 @@ function App() {
                                 <Route path="*" element={<Navigate to="/" replace />} />
                             </Routes>
                         </BrowserRouter>
-                
+
                 </div>
             </div>
         </div>
