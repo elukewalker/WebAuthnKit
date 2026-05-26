@@ -126,14 +126,8 @@ function RegisterPage() {
                         navigate('/');
                     } catch (err) {
                         dispatch(alertActions.error("Something went wrong. ", err.message));
-                            setSubmitted(false);
-                        });
-
-                    })
-                    .catch(err => {
                         setSubmitted(false);
-                        dispatch(alertActions.error(err.message));
-                    });
+                    }
                 }
             } else {
                 let error = "Invalid challengeName and type";
