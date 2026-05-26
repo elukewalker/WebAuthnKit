@@ -588,10 +588,10 @@ Resources:
       FunctionName: 
         Ref: CreateDBSchemaCallerFuncName
       InlineCode: |
-        var aws = require('aws-sdk');
+        const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
         var cfnResponse = require('cfn-response');
 
-        exports.handler = function(event, context) {
+        exports.handler = async function(event, context) {
           console.log('RECEIVED Event: ', JSON.stringify(event, null, 2));
           if (event.RequestType == 'Delete') {
             cfnResponse.send(event, context, cfnResponse.SUCCESS);
@@ -600,15 +600,15 @@ Resources:
           var responseStatus = "FAILED";
           var responseData = {};
           var functionName = event.ResourceProperties.FunctionName;
-          var lambda = new aws.Lambda();
-          lambda.invoke({ FunctionName: functionName }, function(err, invokeResult) {
-              if (err) {
-                  responseData = {Error: "Invoke call failed"};
-                  console.log(responseData.Error + ":\n", err);
-              }
-              else responseStatus = "SUCCESS";
-              cfnResponse.send(event, context, responseStatus, responseData);
-          });
+          const lambda = new LambdaClient({});
+          try {
+            await lambda.send(new InvokeCommand({ FunctionName: functionName }));
+            responseStatus = "SUCCESS";
+          } catch (err) {
+            responseData = {Error: "Invoke call failed"};
+            console.log(responseData.Error + ":\n", err);
+          }
+          cfnResponse.send(event, context, responseStatus, responseData);
         };
       Handler: index.handler
       Runtime: nodejs20.x

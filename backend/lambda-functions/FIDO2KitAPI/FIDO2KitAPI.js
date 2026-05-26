@@ -536,15 +536,17 @@ async function deleteUser(username, userId, token) {
     try {
         let response = await lambdaClient.send(new InvokeCommand(params));
 
-        
+
 
         const payloadString = new TextDecoder().decode(response.Payload);
 
         let payload = JSON.parse(JSON.parse(payloadString));
 
-        
+
         allRegistrationsRemoved = true;
     } catch (err) {
+        console.error('Failed to remove FIDO2 registrations for user:', err);
+        allRegistrationsRemoved = false;
     }
 
     // 2. Remove user's data from database

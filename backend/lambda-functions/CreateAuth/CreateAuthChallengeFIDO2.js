@@ -84,6 +84,7 @@ async function getCreateCredentialsOptions(event, creds) {
             Username: event.userName
         }));
     } catch (err) {
+        console.error('Failed to update user attributes:', err);
     }
 
     const payload = JSON.stringify({
@@ -123,7 +124,8 @@ async function getCreateCredentialsOptions(event, creds) {
         
         return JSON.stringify(startRegisterPayload);
     } catch (err) {
-        return "error";
+        console.error('Failed to create registration options:', err);
+        throw new Error('Failed to create registration options: ' + err.message);
     }
 }
 
@@ -159,7 +161,8 @@ async function getCredentialsOptions(username) {
         
         return JSON.stringify(startAuthPayload);
     } catch (err) {
-        return "error";
+        console.error('Failed to create authentication options:', err);
+        throw new Error('Failed to create authentication options: ' + err.message);
     }
 }
 
@@ -190,7 +193,8 @@ async function getAllowedCredentialsForUser(userName, cognitoId){
         let payload = JSON.parse(JSON.parse(payloadString));
         userCreds.records = payload;
     } catch (err) {
-        return "error";
+        console.error('Failed to get credentials for user:', err);
+        throw new Error('Failed to get credentials for user: ' + err.message);
     }
     
     

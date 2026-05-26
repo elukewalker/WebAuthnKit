@@ -73,7 +73,7 @@ function LoginPage() {
 
     function handleLoginWithoutUsername() {
         localStorage.removeItem('username');
-        history.push('/loginWithSecurityKey');
+        navigate('/loginWithSecurityKey');
     }
 
     return (

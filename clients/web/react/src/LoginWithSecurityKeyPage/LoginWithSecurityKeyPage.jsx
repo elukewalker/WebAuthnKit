@@ -68,17 +68,17 @@ function LoginWithSecurityKeyPage() {
         setSubmitted(true);
 
         try {
-            let cognitoUser = await signIn({ username });
-            setCognitoUser(cognitoUser);
+            let signInResult = await signIn({ username });
+            setCognitoUser(signInResult);
 
-            if(cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.create'){
+            if(signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.create'){
                 dispatch(alertActions.error("Please register an account"));
                 navigate('/login');
                 return;
-            } else if (cognitoUser.challengeName === 'CUSTOM_CHALLENGE' && cognitoUser.challengeParam.type === 'webauthn.get') {
+            } else if (signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.get') {
 
 
-                const request = JSON.parse(cognitoUser.challengeParam.publicKeyCredentialRequestOptions);
+                const request = JSON.parse(signInResult.nextStep.additionalInfo.publicKeyCredentialRequestOptions);
                 
                 const publicKey = {"publicKey": request.publicKeyCredentialRequestOptions};
 
@@ -105,7 +105,7 @@ function LoginWithSecurityKeyPage() {
                                 dispatch(alertActions.success('Authentication successful'));
                                 let userData = {
                                     id: 1,
-                                    username: user.attributes.name,
+                                    username: user.signInDetails?.loginId || localStorage.getItem('username') || username,
                                     token: session.tokens?.accessToken?.toString()
                                 }
                                 localStorage.setItem('user', JSON.stringify(userData));
@@ -115,7 +115,7 @@ function LoginWithSecurityKeyPage() {
                                 dispatch(alertActions.error("Something went wrong. ", err.message));
                                 setSubmitted(false);
                             });
-                            
+
                     })
                     .catch(err => {
                         dispatch(alertActions.error(err.message));
@@ -151,12 +151,12 @@ function LoginWithSecurityKeyPage() {
 
 
         signIn({ username })
-        .then(user => {
-            if(user.challengeName === 'CUSTOM_CHALLENGE' && user.challengeParam.type === 'webauthn.create'){
+        .then(signInResult => {
+            if(signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.create'){
                 dispatch(alertActions.error("Please register an account"));
                 navigate('/login');
                 return;
-            } else if (user.challengeName === 'CUSTOM_CHALLENGE'  && user.challengeParam.type === 'webauthn.get') {
+            } else if (signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE'  && signInResult.nextStep?.additionalInfo?.type === 'webauthn.get') {
                 // to send the answer of the custom challenge
                 confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) })
                     .then(user => {
@@ -166,7 +166,7 @@ function LoginWithSecurityKeyPage() {
                                 dispatch(alertActions.success('Authentication successful'));
                                 let userData = {
                                     id: 1,
-                                    username: user.attributes.name,
+                                    username: user.signInDetails?.loginId || localStorage.getItem('username') || username,
                                     token: session.tokens?.accessToken?.toString()
                                 }
                                 localStorage.setItem('user', JSON.stringify(userData));
@@ -231,7 +231,7 @@ function LoginWithSecurityKeyPage() {
                     dispatch(alertActions.success('Authentication successful'));
                     let userData = {
                         id: 1,
-                        username: user.attributes.name,
+                        username: user.signInDetails?.loginId || localStorage.getItem('username') || username,
                         token: session.tokens?.accessToken?.toString()
                     }
                     localStorage.setItem('user', JSON.stringify(userData));
@@ -272,7 +272,7 @@ function LoginWithSecurityKeyPage() {
                         dispatch(alertActions.success('Authentication successful'));
                         let userData = {
                             id: 1,
-                            username: user.attributes.name,
+                            username: user.signInDetails?.loginId || localStorage.getItem('username') || username,
                             token: session.tokens?.accessToken?.toString()
                         }
                         localStorage.setItem('user', JSON.stringify(userData));
