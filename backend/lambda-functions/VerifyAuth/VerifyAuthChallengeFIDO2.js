@@ -84,6 +84,7 @@ exports.handler = async (event) => {
                 Username: event.userName
             }));
         } catch (err) {
+            console.error('Failed to update user attributes:', err);
         }
     
     // AUTHENTICATION
@@ -169,7 +170,8 @@ async function verifyMakeCredentialResponse(attestationResponse, event) {
             return false;
         }
     } catch (err) {
-        return false;
+        console.error('Failed to verify attestation:', err);
+        throw new Error('Failed to verify attestation: ' + err.message);
     }
 }
 
@@ -195,10 +197,11 @@ async function verifyAssertionResponse (assertionResponse, event) {
 
         const payloadString = new TextDecoder().decode(response.Payload);
         let payload = JSON.parse(payloadString);
-        
+
         return (payload.success === true);
     } catch (err) {
-        return false;
+        console.error('Failed to verify assertion:', err);
+        throw new Error('Failed to verify assertion: ' + err.message);
     }
 }
 
