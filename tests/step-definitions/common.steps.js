@@ -1,0 +1,76 @@
+const { Given, When, Then } = require('@cucumber/cucumber');
+const assert = require('assert');
+const { APP_URL, navigateToLogin } = require('../support/helpers');
+
+// Map Gherkin button labels to actual UI text where they differ
+const LABEL_MAP = {
+    'Sign in with Security Key': 'Login with Security Key',
+    'Sign in with recovery code': 'Login another way',
+};
+
+Given('I am on the login page', async function () {
+    await navigateToLogin(this.page);
+});
+
+When('I click {string}', async function (label) {
+    const text = LABEL_MAP[label] || label;
+    await this.page.click(`text=${text}`);
+});
+
+When('I click Next', async function () {
+    await this.page.click('button:has-text("Next")');
+});
+
+When('I click Sign Out', async function () {
+    await this.page.click('a:has-text("Logout")');
+});
+
+When('I click Cancel', async function () {
+    await this.page.click('a:has-text("Cancel")');
+});
+
+// The virtual authenticator responds automatically to WebAuthn API calls.
+// This step is a named pause for readability; the next assertion does the real waiting.
+When('the virtual authenticator completes the ceremony', async function () {
+    await this.page.waitForLoadState('domcontentloaded');
+});
+
+Then('I should be redirected to the dashboard', async function () {
+    await this.page.waitForURL(`${APP_URL}/`, { timeout: 60000 });
+});
+
+Then('I should be on the dashboard', async function () {
+    await this.page.waitForURL(`${APP_URL}/`, { timeout: 60000 });
+});
+
+Then('I should be signed in as {string}', async function (_username) {
+    // Verify authenticated state by checking the h1 greeting on the dashboard
+    await this.page.waitForURL(`${APP_URL}/`, { timeout: 10000 });
+    await this.page.waitForSelector('h1', { timeout: 10000 });
+    const heading = await this.page.textContent('h1');
+    assert.ok(heading.includes('Hi'), `Expected dashboard greeting but got: ${heading}`);
+});
+
+Then('I should see an error message', async function () {
+    await this.page.waitForSelector('.alert-danger', { timeout: 15000 });
+});
+
+Then('I should remain on the login page', async function () {
+    const url = this.page.url();
+    assert.ok(url.includes('/login'), `Expected to remain on /login but got: ${url}`);
+});
+
+Then('I should be on the login page', async function () {
+    await this.page.waitForURL('**/login', { timeout: 15000 });
+    const url = this.page.url();
+    assert.ok(url.includes('/login'), `Expected /login but got: ${url}`);
+});
+
+Then('I should not be signed in', async function () {
+    const url = this.page.url();
+    // Should still be on a non-dashboard page
+    assert.ok(
+        !url.match(/^https?:\/\/[^/]+\/?$/),
+        `Expected to not be on dashboard but got: ${url}`
+    );
+});
