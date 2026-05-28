@@ -123,6 +123,22 @@ echo "Docker image is ready!"
 # Result: e.g. <USER_LOCAL_DIRECTORY>/WebAuthnKit
 STARTER_KIT_DIR=$(echo $(pwd) | rev | cut -d'/' -f3- | rev)
 
+# |************************* Resolve AWS Credentials **********************************|
+# Resolve credentials on the host (where the current auth mechanism works) and export
+# them as standard environment variables to pass into Docker. This supports all
+# credential types: SSO, IAM users, assumed roles, and instance profiles — without
+# requiring Docker's bundled botocore to parse the host's credential configuration.
+echo "[Setup] Resolving AWS credentials..."
+CREDS_JSON=$(aws configure export-credentials --profile $AWS_CLI_PROFILE 2>/dev/null)
+if [ -z "$CREDS_JSON" ]; then
+    error 1 "Failed to resolve AWS credentials for profile '$AWS_CLI_PROFILE'. Run 'aws sso login' or configure your credentials and try again."
+fi
+export AWS_ACCESS_KEY_ID=$(echo $CREDS_JSON | python3 -c "import sys,json; print(json.load(sys.stdin)['AccessKeyId'])")
+export AWS_SECRET_ACCESS_KEY=$(echo $CREDS_JSON | python3 -c "import sys,json; print(json.load(sys.stdin)['SecretAccessKey'])")
+export AWS_SESSION_TOKEN=$(echo $CREDS_JSON | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('SessionToken', ''))")
+DOCKER_AWS_CREDS="-e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN -e AWS_DEFAULT_REGION=$AWS_REGION"
+echo "AWS credentials resolved."
+
 #1 |******************* Clean Install of Java Function  ******************************|
 # Run mvn clean install of the Java Lambda function JavaWebAuthnLib
 # Result is a production build of /backend/lambda-functions/JavaWebAuthnLib/target/webauthn.jar
@@ -130,6 +146,16 @@ STARTER_KIT_DIR=$(echo $(pwd) | rev | cut -d'/' -f3- | rev)
 echo "Step 1 [Pre-Deployment] Running mvn clean install of the JavaWebAuthnLib (Java) Lambda function..."
 docker run -w /webauthnkit/backend/lambda-functions/JavaWebAuthnLib --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev mvn clean install > /dev/null 2>&1
 echo "mvn clean install: COMPLETE"
+
+#1b |***************** Install Node.js Lambda Dependencies ***************************|
+# Run npm install --production for each Node.js Lambda function so that SAM packages
+# the dependencies into the deployment artifacts (SAM build does not reliably run npm
+# install inside the Docker environment used here).
+echo "Step 1b [Pre-Deployment] Running npm install for Node.js Lambda functions..."
+for LAMBDA_DIR in FIDO2KitAPI CreateAuth CreateDBSchema PreSignUp DefineAuth VerifyAuth; do
+    docker run -w /webauthnkit/backend/lambda-functions/$LAMBDA_DIR --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev npm install --production --silent > /dev/null 2>&1
+done
+echo "npm install: COMPLETE"
 
 #2 |************************ Create S3 Bucket ****************************************|
 # Create an Amazon S3 bucket used for SAM deployment
@@ -153,11 +179,10 @@ docker run -w /webauthnkit/backend --volume=$STARTER_KIT_DIR:/webauthnkit starte
 #5 |**************************** SAM Deploy ******************************************|
 echo "Step 5 [Deployment] Running SAM deploy..."
 docker run -w /webauthnkit/backend --volume=$STARTER_KIT_DIR:/webauthnkit \
---volume=${HOME}/.aws:/home/developer/.aws:ro starterkit:dev \
+$DOCKER_AWS_CREDS starterkit:dev \
 /home/developer/.local/bin/sam deploy \
 --s3-bucket $S3_BUCKET_NAME \
 --stack-name $CF_STACK_NAME \
---profile $AWS_CLI_PROFILE \
 --region $AWS_REGION \
 --capabilities CAPABILITY_IAM \
 --parameter-overrides UserPoolName=$USER_POOL_NAME \

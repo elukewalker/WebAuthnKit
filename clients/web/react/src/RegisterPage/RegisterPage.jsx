@@ -75,7 +75,7 @@ function RegisterPage() {
 
         try {
 
-            let signInResult = await signIn({ username });
+            let signInResult = await signIn({ username, options: { authFlowType: 'CUSTOM_WITHOUT_SRP' } });
             setCognitoUser(signInResult);
 
             if(signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.get'){

@@ -68,7 +68,7 @@ function LoginWithSecurityKeyPage() {
         setSubmitted(true);
 
         try {
-            let signInResult = await signIn({ username });
+            let signInResult = await signIn({ username, options: { authFlowType: 'CUSTOM_WITHOUT_SRP' } });
             setCognitoUser(signInResult);
 
             if(signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.create'){
@@ -150,7 +150,7 @@ function LoginWithSecurityKeyPage() {
         };
 
 
-        signIn({ username })
+        signIn({ username, options: { authFlowType: 'CUSTOM_WITHOUT_SRP' } })
         .then(signInResult => {
             if(signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.create'){
                 dispatch(alertActions.error("Please register an account"));

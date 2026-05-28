@@ -34,7 +34,7 @@ var constraints = {
 };
 
 // Using npmjs.com/package/data-api-client package for accessing an Aurora Serverless Database with Data API enabled
-const data = require('data-api-client')({
+const data = require('./db-client')({
     secretArn: process.env.DBSecretsStoreArn,
     resourceArn: process.env.DBAuroraClusterArn,
     database: process.env.DatabaseName
@@ -199,23 +199,23 @@ async function getAllowedCredentialsForUser(userName, cognitoId){
     
     
     // Return empty credentials if none defined in db
-    if (userCreds.records === undefined || userCreds.records === 0) {
+    if (userCreds.records === undefined || userCreds.records.length === 0) {
         // Create new user with empty credentials
         await data.query('INSERT IGNORE INTO user (userName, cognito_id) VALUES(:userName, :cognito_id)', { userName: userName, cognito_id: cognitoId });
-        
+
         let userCredentialObject = {
             userName: userName,
             cognitoId: cognitoId,
             userCredentials: (userCredentials)
         };
-        
+
         return userCredentialObject;
     }
-    
+
     let userCredentialObject = {
         userName: userName,
         cognitoId: cognitoId,
-        userCredentials: (payload)
+        userCredentials: (userCreds.records)
     };
 
     return userCredentialObject;

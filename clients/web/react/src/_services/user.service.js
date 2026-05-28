@@ -35,7 +35,7 @@ async function logout() {
 async function exists(username) {
     const _username = username.toLowerCase();
     try {
-        let signInResult = await signIn({ username: _username });
+        let signInResult = await signIn({ username: _username, options: { authFlowType: 'CUSTOM_WITHOUT_SRP' } });
         if (signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.get') {
             return signInResult;
         } else {

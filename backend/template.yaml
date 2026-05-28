@@ -104,32 +104,39 @@ Conditions:
   isManual: !Equals [!Ref AmplifyDeployType, "manual"]
     
 Resources:
-  # RDS Aurora Serverless Cluster - Encryption enabled by default
-  # Warning: NOT FREE TIER - Aurora Serverless does not support free tier instance class
-  # We have reduced capacity to max of 1 but turned off AutoPause to avoid cold starts
-  # To reduce costs: You can set AutoPause: true and uncomment (SecondsUntilAutoPause)
-  # or delete the CloudFormation Stack entirely. You can always start over and redeploy later
+  # RDS Aurora Serverless v2 Cluster - Encryption enabled by default
+  # Warning: NOT FREE TIER - Aurora Serverless v2 does not support free tier instance class
+  # Aurora Serverless v1 (engine mode: serverless) is no longer available for new clusters.
+  # This uses Aurora Serverless v2 with MinCapacity 0.5 ACU to keep costs low.
+  # To reduce costs further: delete the CloudFormation Stack entirely and redeploy later.
   RDSAuroraServerlessCluster:
     Type: AWS::RDS::DBCluster
     DeletionPolicy: Delete
     Properties:
-      DBClusterIdentifier: 
+      DBClusterIdentifier:
         Ref: DatabaseName
       MasterUsername:
         Ref: MasterUserName
       MasterUserPassword:
         Ref: MasterUserPassword
-      DatabaseName: 
+      DatabaseName:
         Ref: DatabaseName
-      Engine: aurora
-      EngineMode: serverless
+      Engine: aurora-mysql
+      EngineVersion: 8.0.mysql_aurora.3.08.0
       EnableHttpEndpoint: true
       StorageEncrypted: true
-      ScalingConfiguration:
-        AutoPause: false
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
         MaxCapacity: 1
-        MinCapacity: 1
-        #SecondsUntilAutoPause: 7200
+
+  # Aurora Serverless v2 requires an explicit DB instance (unlike v1)
+  RDSAuroraServerlessInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      DBClusterIdentifier: !Ref RDSAuroraServerlessCluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-mysql
   # Create a SecretsManager to manage the Aurora Serverless credentials
   RDSAuroraClusterMasterSecret:
     Type: 'AWS::SecretsManager::Secret'
@@ -588,27 +595,54 @@ Resources:
       FunctionName: 
         Ref: CreateDBSchemaCallerFuncName
       InlineCode: |
+        const https = require('https');
+        const url = require('url');
         const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
-        var cfnResponse = require('cfn-response');
+
+        // Promise-based cfn-response so async handler can await it before returning.
+        // The bundled cfn-response module uses callbacks; if the async handler returns
+        // before the HTTP PUT completes, the runtime terminates the process early.
+        function sendResponse(event, context, status, data) {
+          const body = JSON.stringify({
+            Status: status,
+            Reason: 'See CloudWatch log group: ' + context.logGroupName,
+            PhysicalResourceId: context.logStreamName,
+            StackId: event.StackId,
+            RequestId: event.RequestId,
+            LogicalResourceId: event.LogicalResourceId,
+            Data: data || {}
+          });
+          const parsed = url.parse(event.ResponseURL);
+          const options = {
+            hostname: parsed.hostname,
+            port: 443,
+            path: parsed.path,
+            method: 'PUT',
+            headers: { 'Content-Type': '', 'Content-Length': body.length }
+          };
+          return new Promise((resolve, reject) => {
+            const req = https.request(options, resolve);
+            req.on('error', reject);
+            req.write(body);
+            req.end();
+          });
+        }
 
         exports.handler = async function(event, context) {
           console.log('RECEIVED Event: ', JSON.stringify(event, null, 2));
-          if (event.RequestType == 'Delete') {
-            cfnResponse.send(event, context, cfnResponse.SUCCESS);
+          if (event.RequestType === 'Delete') {
+            await sendResponse(event, context, 'SUCCESS');
             return;
           }
-          var responseStatus = "FAILED";
-          var responseData = {};
-          var functionName = event.ResourceProperties.FunctionName;
+          const functionName = event.ResourceProperties.FunctionName;
           const lambda = new LambdaClient({});
           try {
             await lambda.send(new InvokeCommand({ FunctionName: functionName }));
-            responseStatus = "SUCCESS";
+            await sendResponse(event, context, 'SUCCESS');
           } catch (err) {
-            responseData = {Error: "Invoke call failed"};
-            console.log(responseData.Error + ":\n", err);
+            console.log('Invoke call failed:', err);
+            await sendResponse(event, context, 'FAILED', { Error: 'Invoke call failed' });
           }
-          cfnResponse.send(event, context, responseStatus, responseData);
         };
       Handler: index.handler
       Runtime: nodejs20.x

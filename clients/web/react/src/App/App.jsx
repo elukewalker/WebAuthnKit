@@ -13,7 +13,14 @@ import { RegisterPage } from '../RegisterPage';
 import { Amplify } from 'aws-amplify';
 import aws_exports from '../aws-exports';
 
-Amplify.configure(aws_exports);
+Amplify.configure({
+    Auth: {
+        Cognito: {
+            userPoolId: aws_exports.Auth.userPoolId,
+            userPoolClientId: aws_exports.Auth.userPoolWebClientId,
+        }
+    }
+});
 
 // Component to handle alert clearing on route change
 function AlertClearer() {

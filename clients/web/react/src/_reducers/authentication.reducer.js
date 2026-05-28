@@ -50,11 +50,13 @@ export function authentication(state = initialState, action) {
       };
     case userConstants.EXISTS_SUCCESS:
       return {
-        signInResult: action.user
+        signInResult: action.user,
+        user: action.user
       };
     case userConstants.EXISTS_FAILURE:
       return {
-        signInResult: action.error
+        signInResult: action.error,
+        error: action.error
       };
     default:
       return state

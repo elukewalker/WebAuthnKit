@@ -9,10 +9,10 @@
   "author": "Yubico AB",
   "license": "Apache-2.0",
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.450.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.450.0",
+    "@aws-sdk/client-lambda": "^3.450.0",
+    "@aws-sdk/client-rds-data": "^3.1055.0",
     "crypto": "^1.0.1",
-    "data-api-client": "^1.3.0",
     "validate.js": "^0.13.1"
   }
 }
