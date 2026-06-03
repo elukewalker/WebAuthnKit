@@ -8,8 +8,23 @@ function uniqueUsername(base) {
 }
 
 async function navigateToLogin(page) {
+    // Clear the custom user key so the Redux auth reducer starts with empty initialState.
+    // Without this, a logged-in session causes LoginPage to redirect to /loginWithSecurityKey
+    // where the virtual authenticator auto-signs-in again, creating an infinite loop.
+    await page.evaluate(() => localStorage.removeItem('user')).catch(() => {});
+
     await page.goto(`${APP_URL}/login`);
-    await page.waitForSelector('input[name="username"]');
+    // LoginPage dispatches userActions.logout() (Amplify signOut) on mount, but the Redux
+    // authUser may still be set if localStorage.user was present, causing a redirect to
+    // /loginWithSecurityKey. Wait for the redirect to settle, then re-navigate if needed.
+    await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+    if (!page.url().endsWith('/login')) {
+        // Redirected away — clear session state and navigate back.
+        await page.evaluate(() => localStorage.removeItem('user')).catch(() => {});
+        await page.goto(`${APP_URL}/login`);
+        await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+    }
+    await page.waitForSelector('input[name="username"]', { timeout: 30000 });
 }
 
 // Registers a brand-new user via the UI and lands on the dashboard.
@@ -19,6 +34,10 @@ async function registerUser(page, username) {
     await page.fill('input[name="username"]', username);
     await page.click('button:has-text("Next")');
     await page.waitForURL('**/register', { timeout: 20000 });
+    // RegisterPage's useEffect calls signOut() async. Wait for it to finish
+    // before clicking Register Security Key to avoid a race where signOut()
+    // invalidates the session established by confirmSignIn().
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     await page.click('button:has-text("Register Security Key")');
     await page.waitForURL(`${APP_URL}/`, { timeout: 60000 });
 }
@@ -59,9 +78,15 @@ async function captureRecoveryCodes(page) {
         await page.waitForSelector('.modal-title:has-text("Recovery Codes")', { timeout: 10000 });
     }
 
-    // Wait until all 5 codes are rendered
+    // If no codes exist yet, click Generate to create them
     const codeLocator = page.locator('.modal-body ul li');
-    await codeLocator.nth(4).waitFor({ timeout: 20000 });
+    const codesExist = await codeLocator.count() > 0;
+    if (!codesExist) {
+        await page.click('button:has-text("Generate")');
+    }
+
+    // Wait until all 5 codes are rendered (Lambda cold-start can take 10-15s)
+    await codeLocator.nth(4).waitFor({ timeout: 45000 });
 
     const count = await codeLocator.count();
     const codes = [];
