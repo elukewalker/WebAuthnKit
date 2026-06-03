@@ -140,8 +140,10 @@ function LoginWithSecurityKeyPage() {
 
         let assertionResponse = await get(publicKey);
 
-        // get username from assertionResponse
-        const username = assertionResponse.response.userHandle;
+        // userHandle is base64url(UTF-8 bytes of Cognito sub UUID).
+        // Cognito's preferred_username alias is set to the raw UUID string during
+        // registration, so we decode to get the UUID for signIn().
+        const username = base64url.decode(assertionResponse.response.userHandle);
 
         let challengeResponse = {
             credential: assertionResponse,
