@@ -260,39 +260,33 @@ function LoginWithSecurityKeyPage() {
 
     async function handleRecoveryCode(code) {
         setSubmitted(true);
-        try {
-            let cognitoUser = await signIn({ username });
-            setCognitoUser(cognitoUser);
+        // The auto-started signIn() on mount already established a pending webauthn.get
+        // challenge. VerifyAuth supports answering it with a recovery code directly,
+        // so we call confirmSignIn without any additional signOut/signIn.
+        confirmSignIn({ challengeResponse: JSON.stringify({recoveryCode: code}) })
+            .then(user => {
 
-            confirmSignIn({ challengeResponse: JSON.stringify({recoveryCode: code}) })
-                .then(user => {
-
-                    fetchAuthSession()
-                    .then(session => {
-                        dispatch(alertActions.success('Authentication successful'));
-                        let userData = {
-                            id: 1,
-                            username: user.signInDetails?.loginId || localStorage.getItem('username') || username,
-                            token: session.tokens?.accessToken?.toString()
-                        }
-                        localStorage.setItem('user', JSON.stringify(userData));
-                        navigate('/');
-                    })
-                    .catch(err => {
-                        dispatch(alertActions.error("Something went wrong. ", err.message));
-                        setSubmitted(false);
-                    });
+                fetchAuthSession()
+                .then(session => {
+                    dispatch(alertActions.success('Authentication successful'));
+                    let userData = {
+                        id: 1,
+                        username: user.signInDetails?.loginId || localStorage.getItem('username') || username,
+                        token: session.tokens?.accessToken?.toString()
+                    }
+                    localStorage.setItem('user', JSON.stringify(userData));
+                    navigate('/');
                 })
                 .catch(err => {
+                    dispatch(alertActions.error("Something went wrong. ", err.message));
                     setSubmitted(false);
-                    let msg = "Invalid recovery code";
-                    dispatch(alertActions.error(msg));
                 });
-
-        } catch (error) {
-            setSubmitted(false);
-            dispatch(alertActions.error(error.message));
-        }
+            })
+            .catch(err => {
+                setSubmitted(false);
+                let msg = "Invalid recovery code";
+                dispatch(alertActions.error(msg));
+            });
     }
 
     function RecoveryCodes() {
