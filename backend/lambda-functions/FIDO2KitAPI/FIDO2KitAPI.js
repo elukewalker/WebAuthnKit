@@ -160,7 +160,7 @@ async function updateFIDO2CredentialNickname(username, body) {
     const payload = JSON.stringify({
         "type": "updateCredentialNickname",
         "username": username,
-        "credentialId": data.credential.credentialId.base64,
+        "credentialId": data.credential.credentialId.base64url,
         "nickname": data.credentialNickname.value,
     });
     
@@ -232,13 +232,15 @@ async function startUsernamelessAuthentication() {
 
         let startAuthPayload = JSON.parse(JSON.parse(new TextDecoder().decode(response.Payload)));
 
-        startAuthPayload.requestId = startAuthPayload.requestId.base64;
-        startAuthPayload.publicKeyCredentialRequestOptions.userVerification = startAuthPayload.publicKeyCredentialRequestOptions.userVerification.toLowerCase();
-        startAuthPayload.publicKeyCredentialRequestOptions.challenge = startAuthPayload.publicKeyCredentialRequestOptions.challenge.base64;
+        startAuthPayload.requestId = startAuthPayload.requestId.base64url || startAuthPayload.requestId.base64;
+        if (startAuthPayload.publicKeyCredentialRequestOptions.userVerification) {
+            startAuthPayload.publicKeyCredentialRequestOptions.userVerification = startAuthPayload.publicKeyCredentialRequestOptions.userVerification.toLowerCase();
+        }
+        startAuthPayload.publicKeyCredentialRequestOptions.challenge = startAuthPayload.publicKeyCredentialRequestOptions.challenge.base64url || startAuthPayload.publicKeyCredentialRequestOptions.challenge.base64;
         if(startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials){
-            startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials = startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials.map( (cred) => { 
+            startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials = startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials.map( (cred) => {
                 cred.type = cred.type.toLowerCase().replace('_','-');
-                cred.id = cred.id.base64;
+                cred.id = cred.id.base64url || cred.id.base64;
                 return cred
             });
         }
@@ -263,7 +265,7 @@ async function startRegisterFIDO2Credential(profile, body, uid) {
         "username": profile.username,
         "displayName": profile.username,
         "credentialNickname": jsonBody.nickname,
-        "requireResidentKey": jsonBody.requireResidentKey,
+        "residentKey": jsonBody.residentKey || (jsonBody.requireResidentKey ? "required" : "preferred"),
         "uid": uid
     });
     
@@ -283,21 +285,26 @@ async function startRegisterFIDO2Credential(profile, body, uid) {
 
         let startRegisterPayload = JSON.parse(JSON.parse(payloadString));
 
-        const coseLookup = {"ES256": -7, "EdDSA": -8, "RS256": -257};
-        
-        startRegisterPayload.requestId = startRegisterPayload.requestId.base64;
-        startRegisterPayload.publicKeyCredentialCreationOptions.user.id = startRegisterPayload.publicKeyCredentialCreationOptions.user.id.base64;
-        startRegisterPayload.publicKeyCredentialCreationOptions.challenge = startRegisterPayload.publicKeyCredentialCreationOptions.challenge.base64;
+        const coseLookup = {"ES256": -7, "EdDSA": -8, "RS256": -257, "ES384": -35, "ES512": -36, "Ed448": -9, "RS384": -258, "RS512": -259};
+
+        startRegisterPayload.requestId = startRegisterPayload.requestId.base64url || startRegisterPayload.requestId.base64;
+        startRegisterPayload.publicKeyCredentialCreationOptions.user.id = startRegisterPayload.publicKeyCredentialCreationOptions.user.id.base64url || startRegisterPayload.publicKeyCredentialCreationOptions.user.id.base64;
+        startRegisterPayload.publicKeyCredentialCreationOptions.challenge = startRegisterPayload.publicKeyCredentialCreationOptions.challenge.base64url || startRegisterPayload.publicKeyCredentialCreationOptions.challenge.base64;
         startRegisterPayload.publicKeyCredentialCreationOptions.attestation = startRegisterPayload.publicKeyCredentialCreationOptions.attestation.toLowerCase();
-        startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification = startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification.toLowerCase();
-        startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams = startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams.map( (cred) => { 
+        if (startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification) {
+            startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification = startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification.toLowerCase();
+        }
+        if (startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.residentKey) {
+            startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.residentKey = startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.residentKey.toLowerCase();
+        }
+        startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams = startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams.map( (cred) => {
             cred.type = cred.type.toLowerCase().replace('_','-');
             cred.alg = coseLookup[cred.alg];
             return cred;
-        });
-        startRegisterPayload.publicKeyCredentialCreationOptions.excludeCredentials = startRegisterPayload.publicKeyCredentialCreationOptions.excludeCredentials.map( (cred) => { 
+        }).filter(cred => cred.alg !== undefined);
+        startRegisterPayload.publicKeyCredentialCreationOptions.excludeCredentials = startRegisterPayload.publicKeyCredentialCreationOptions.excludeCredentials.map( (cred) => {
             cred.type = cred.type.toLowerCase().replace('_','-');
-            cred.id = cred.id.base64;
+            cred.id = cred.id.base64url || cred.id.base64;
             return cred;
         });
         
@@ -376,7 +383,12 @@ async function finishRegisterFIDO2Credential(userName, body) {
         
         const payloadString = new TextDecoder().decode(response.Payload);
         let payload = JSON.parse(payloadString);
-        
+
+        // If the Java Lambda returned a Gson-serialized string, double-parse it
+        if (typeof payload === 'string') {
+            payload = JSON.parse(payload);
+        }
+
         return ok(payload);
     } catch (err) {
         return error(err);

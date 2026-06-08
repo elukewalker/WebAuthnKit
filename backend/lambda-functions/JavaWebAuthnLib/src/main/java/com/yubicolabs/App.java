@@ -4,12 +4,12 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
-import com.yubico.internal.util.JacksonCodecs;
 import com.yubico.webauthn.AssertionResult;
 import com.yubico.webauthn.FinishAssertionOptions;
 import com.yubico.webauthn.FinishRegistrationOptions;
@@ -18,11 +18,12 @@ import com.yubico.webauthn.RegistrationResult;
 import com.yubico.webauthn.RelyingParty;
 import com.yubico.webauthn.StartAssertionOptions;
 import com.yubico.webauthn.StartRegistrationOptions;
-import com.yubico.webauthn.attestation.Attestation;
 import com.yubico.webauthn.data.AttestationConveyancePreference;
 import com.yubico.webauthn.data.AuthenticatorSelectionCriteria;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.PublicKeyCredentialDescriptor;
+import com.yubico.webauthn.data.ResidentKeyRequirement;
+import com.yubico.webauthn.data.UserVerificationRequirement;
 import com.yubico.webauthn.data.UserIdentity;
 import com.yubico.webauthn.data.exception.Base64UrlException;
 import com.yubico.webauthn.exception.AssertionFailedException;
@@ -51,9 +52,13 @@ public class App implements RequestHandler<Object, Object> {
 
     private final Clock clock = Clock.systemDefaultZone();
 
-    // RVW: This is in package com.yubico.internal, so should be eliminated. Can we use gson instead?
-    private final ObjectMapper jsonMapper = JacksonCodecs.json();
-    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private final ObjectMapper jsonMapper = new ObjectMapper();
+    private final Gson gson = new GsonBuilder()
+        .setPrettyPrinting()
+        .registerTypeAdapter(java.time.Instant.class, InstantTypeAdapter.INSTANCE)
+        .registerTypeAdapter(ByteArray.class, ByteArrayTypeAdapter.INSTANCE)
+        .registerTypeAdapterFactory(OptionalTypeAdapterFactory.INSTANCE)
+        .create();
 
     private final AssertionRequestStorage assertRequestStorage = new AssertionRequestStorage();
     private final RegistrationRequestStorage registerRequestStorage = new RegistrationRequestStorage();
@@ -64,7 +69,6 @@ public class App implements RequestHandler<Object, Object> {
         .credentialRepository(this.userStorage)
         .origins(Config.getOrigins())
         .attestationConveyancePreference(Optional.of(AttestationConveyancePreference.DIRECT))
-        .allowUnrequestedExtensions(true)
         .allowUntrustedAttestation(true)
         .validateSignatureCounter(true)
         .build();
@@ -124,10 +128,10 @@ public class App implements RequestHandler<Object, Object> {
         String username = jsonRequest.get("username").getAsString();
         String displayName = jsonRequest.get("displayName").getAsString();
         String credentialNickname = jsonRequest.get("credentialNickname").getAsString();
-        boolean requireResidentKey = jsonRequest.get("requireResidentKey").getAsBoolean();
+        ResidentKeyRequirement residentKey = parseResidentKey(jsonRequest);
         String uid = jsonRequest.get("uid").getAsString();
 
-        log.trace("startRegistration username: {}, displayName: {}, credentialNickname: {}, requireResidentKey: {}, uid {}", username, displayName, credentialNickname, requireResidentKey, uid);
+        log.trace("startRegistration username: {}, displayName: {}, credentialNickname: {}, residentKey: {}, uid {}", username, displayName, credentialNickname, residentKey, uid);
 
         ByteArray id;
         try {
@@ -154,13 +158,14 @@ public class App implements RequestHandler<Object, Object> {
             username,
             displayName,
             credentialNickname,
-            requireResidentKey,
+            residentKey.getValue(),
             generateRandom(32),
             rp.startRegistration(
                 StartRegistrationOptions.builder()
                     .user(registrationUserId)
                     .authenticatorSelection(AuthenticatorSelectionCriteria.builder()
-                        .requireResidentKey(requireResidentKey)
+                        .residentKey(residentKey)
+                        .userVerification(UserVerificationRequirement.PREFERRED)
                         .build()
                     )
                     .build()
@@ -212,10 +217,11 @@ public class App implements RequestHandler<Object, Object> {
                     Optional.of(request.getCredentialNickname()),
                     response,
                     registration,
+                    request.getResidentKey(),
                     request
                 );
             } catch (RegistrationFailedException e) {
-                log.debug("Registration failed!", e);
+                log.error("Registration failed!", e);
                 return e;
             } catch (Exception e) {
                 log.error("Registration failed unexpectedly; this is likely a bug.", e);
@@ -301,7 +307,7 @@ public class App implements RequestHandler<Object, Object> {
                     }
 
                     log.debug("result: {}", result);
-                    return result;
+                    return gson.toJson(result, AssertionResult.class);
                 } else {
                     String msg = "Assertion failed: Invalid assertion.";
                     log.error(msg);
@@ -384,42 +390,54 @@ public class App implements RequestHandler<Object, Object> {
         return userStorage.removeAllRegistrations(username);
     }
 
+    /**
+     * Parses the residentKey parameter from the request. Supports both the modern
+     * string-valued "residentKey" field ("discouraged", "preferred", "required") and
+     * the legacy boolean "requireResidentKey" for backward compatibility.
+     */
+    private static ResidentKeyRequirement parseResidentKey(JsonObject jsonRequest) {
+        JsonElement residentKeyElem = jsonRequest.get("residentKey");
+        if (residentKeyElem != null && !residentKeyElem.isJsonNull()) {
+            String val = residentKeyElem.getAsString().toLowerCase();
+            switch (val) {
+                case "required": return ResidentKeyRequirement.REQUIRED;
+                case "preferred": return ResidentKeyRequirement.PREFERRED;
+                case "discouraged": return ResidentKeyRequirement.DISCOURAGED;
+                default: return ResidentKeyRequirement.PREFERRED;
+            }
+        }
+        // Legacy fallback: boolean requireResidentKey
+        JsonElement legacyElem = jsonRequest.get("requireResidentKey");
+        if (legacyElem != null && !legacyElem.isJsonNull()) {
+            return legacyElem.getAsBoolean()
+                ? ResidentKeyRequirement.REQUIRED
+                : ResidentKeyRequirement.DISCOURAGED;
+        }
+        return ResidentKeyRequirement.PREFERRED;
+    }
+
     private static ByteArray generateRandom(int length) {
         byte[] bytes = new byte[length];
         random.nextBytes(bytes);
         return new ByteArray(bytes);
     }
 
-    private CredentialRegistration addRegistration(
+    private Object addRegistration(
         UserIdentity userIdentity,
         Optional<String> nickname,
         RegistrationResponse response,
         RegistrationResult result,
+        String residentKey,
         RegistrationRequest request
     ) {
-        return addRegistration(
-            userIdentity,
-            nickname,
-            response.getCredential().getResponse().getAttestation().getAuthenticatorData().getSignatureCounter(),
-            RegisteredCredential.builder()
-                .credentialId(result.getKeyId().getId())
-                .userHandle(userIdentity.getId())
-                .publicKeyCose(result.getPublicKeyCose())
-                .signatureCount(response.getCredential().getResponse().getParsedAuthenticatorData().getSignatureCounter())
-                .build(),
-            result.getAttestationMetadata(),
-            request
-        );
-    }
+        long signatureCount = response.getCredential().getResponse().getParsedAuthenticatorData().getSignatureCounter();
+        RegisteredCredential credential = RegisteredCredential.builder()
+            .credentialId(result.getKeyId().getId())
+            .userHandle(userIdentity.getId())
+            .publicKeyCose(result.getPublicKeyCose())
+            .signatureCount(signatureCount)
+            .build();
 
-    private CredentialRegistration addRegistration(
-        UserIdentity userIdentity,
-        Optional<String> nickname,
-        long signatureCount,
-        RegisteredCredential credential,
-        Optional<Attestation> attestationMetadata,
-        RegistrationRequest request
-    ) {
         CredentialRegistration reg = CredentialRegistration.builder()
             .userIdentity(userIdentity)
             .credentialNickname(nickname)
@@ -428,7 +446,6 @@ public class App implements RequestHandler<Object, Object> {
             .lastUpdatedTime(clock.instant())
             .credential(credential)
             .signatureCount(signatureCount)
-            .attestationMetadata(attestationMetadata)
             .registrationRequest(request)
             .build();
 
@@ -439,6 +456,6 @@ public class App implements RequestHandler<Object, Object> {
             credential
         );
         userStorage.addRegistrationByUsername(userIdentity.getName(), reg);
-        return reg;
+        return gson.toJson(reg, CredentialRegistration.class);
     }
 }

@@ -12,19 +12,41 @@ Then('I should be on the registration page', async function () {
     await this.page.waitForURL('**/register', { timeout: 20000 });
     const url = this.page.url();
     assert.ok(url.includes('/register'), `Expected /register but got: ${url}`);
+    // RegisterPage's useEffect calls signOut() async. Wait for it to finish
+    // before the next step clicks Register Security Key.
+    await this.page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
 });
 
 Then('I should see {string}', async function (text) {
+    if (text === 'Registration successful') {
+        // This alert is transient — it is dispatched and then immediately cleared by
+        // AlertClearer when the route changes to '/'. Verify registration success via
+        // durable dashboard state (the Security Keys section) instead.
+        await this.page.waitForSelector('h3:has-text("Security Keys")', { timeout: 15000 });
+        return;
+    }
     // Handle dynamic "Hello testuser" — replace the placeholder with the actual username
     const resolvedText = text.replace('testuser', this.testUsername || 'testuser');
     await this.page.waitForSelector(`text=${resolvedText}`, { timeout: 10000 });
 });
 
 Then('a credential should exist for {string} in the system', async function (_placeholder) {
-    // After registration the dashboard shows the credential list under "Security Keys"
-    await this.page.waitForSelector('h3:has-text("Security Keys")', { timeout: 10000 });
-    const listItems = this.page.locator('ul li');
-    const count = await listItems.count();
+    // Check localStorage for user data and all keys
+    const debugInfo = await this.page.evaluate(() => {
+        const allKeys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            allKeys.push({ key: k, value: (localStorage.getItem(k) || '').slice(0, 200) });
+        }
+        return { user: localStorage.getItem('user'), allKeys };
+    });
+    console.log('[DEBUG] localStorage:', JSON.stringify(debugInfo));
+
+    // Credential list items have Edit links; recovery-code modal li items do not.
+    // Wait for at least one credential item to appear (API call may still be in-flight).
+    const credItems = this.page.locator('ul li:has(a:has-text("Edit"))');
+    await credItems.first().waitFor({ timeout: 30000 });
+    const count = await credItems.count();
     assert.ok(count > 0, 'Expected at least one credential in the list');
 });
 

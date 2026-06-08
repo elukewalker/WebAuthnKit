@@ -97,7 +97,7 @@ function HomePage() {
         const handleCancel = () => setShow(false);
         const handleDelete = () => {
             setShow(false);
-            dispatch(credentialActions.delete(credential.credential.credentialId.base64));
+            dispatch(credentialActions.delete(credential.credential.credentialId.base64url));
         }
         const handleSave = () => {
             setSubmitted(true);
@@ -144,7 +144,7 @@ function HomePage() {
         const register = () => {
             setSubmitted(true);
 
-            axios.post('/users/credentials/fido2/register', {"nickname": nickname, "requireResidentKey": isResidentKey})
+            axios.post('/users/credentials/fido2/register', {"nickname": nickname, "residentKey": isResidentKey ? "required" : "discouraged"})
             .then( startRegistrationResponse => {
     
                 const requestId = startRegistrationResponse.data.requestId;
@@ -202,7 +202,7 @@ function HomePage() {
                 {credentials.items &&
                     <ul>
                         {credentials.items.map((credential, index) =>
-                            <li key={credential.credential.credentialId.base64}>
+                            <li key={credential.credential.credentialId.base64url}>
                                 {credential.credentialNickname.value}
                                 {
                                     credential.deleting ? <em> - Deleting...</em>
@@ -230,7 +230,7 @@ function HomePage() {
                             }
                         }}/></label>
                         { invalidNickname ? <Alert variant="danger">{invalidNickname}</Alert> : null }
-                        <label><em>Usernameless a.k.a. Client-Side Discoverable Credential:</em> {credential.registrationRequest ? credential.registrationRequest.requireResidentKey.toString() : ''}</label><br/>
+                        <label><em>Usernameless a.k.a. Client-Side Discoverable Credential:</em> {credential.registrationRequest ? (credential.registrationRequest.residentKey || 'preferred') : ''}</label><br/>
                         <label><em>Last Used Time:</em> {credential.lastUsedTime ? new Date(credential.lastUsedTime.seconds*1000).toLocaleString() : ''}</label><br/>
                         <label><em>Last Updated Time:</em> {credential.lastUpdatedTime ? new Date(credential.lastUpdatedTime.seconds*1000).toLocaleString() : ''}</label><br/>
                         <label><em>Registration Time:</em> {credential.registrationTime ? new Date(credential.registrationTime.seconds*1000).toLocaleString() : ''}</label><br/>
@@ -424,7 +424,7 @@ function HomePage() {
 
     return (
         <>
-            <h1>Hi {userInfo.attributes.name}!</h1>
+            <h1>Hi {userInfo?.attributes?.name || userInfo.username}!</h1>
             <p>Welcome to the WebAuthn Starter Kit!</p>
             <Credentials/>
             <UV/>

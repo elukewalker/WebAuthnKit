@@ -98,6 +98,7 @@ function RegisterPage() {
 
                 let publicKey = { "publicKey": request.publicKeyCredentialCreationOptions };
 
+                console.log('[RegisterPage] publicKey:', JSON.stringify(publicKey));
                 let credential = await create(publicKey);
 
 
@@ -135,6 +136,7 @@ function RegisterPage() {
                 dispatch(alertActions.error(error));
             }
         } catch (error) {
+            console.error('[RegisterPage] handleWebAuthn error:', error);
             setSubmitted(false);
             dispatch(alertActions.error(error.toString()));
         }

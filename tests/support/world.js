@@ -1,4 +1,7 @@
-const { setWorldConstructor, World } = require('@cucumber/cucumber');
+const { setWorldConstructor, World, setDefaultTimeout } = require('@cucumber/cucumber');
+
+// Default Cucumber step timeout is 5 s — far too short for Playwright + network calls.
+setDefaultTimeout(120 * 1000);
 
 class CustomWorld extends World {
     constructor(options) {

@@ -140,10 +140,10 @@ function LoginWithSecurityKeyPage() {
 
         let assertionResponse = await get(publicKey);
 
-        // userHandle is base64url(UTF-8 bytes of Cognito sub UUID).
-        // Cognito's preferred_username alias is set to the raw UUID string during
-        // registration, so we decode to get the UUID for signIn().
-        const username = base64url.decode(assertionResponse.response.userHandle);
+        // userHandle round-trips through base64url: the Java backend stores
+        // ByteArray.fromBase64Url(cognitoSub), and @github/webauthn-json re-encodes
+        // the returned bytes as base64url, producing the original Cognito sub UUID.
+        const username = assertionResponse.response.userHandle;
 
         let challengeResponse = {
             credential: assertionResponse,
@@ -329,7 +329,7 @@ function LoginWithSecurityKeyPage() {
 
         return (
             <>
-                <label onClick={handleShow} className="btn btn-link">Login another way     </label> <label className="btn btn-link"><a href="/login">Cancel</a></label>
+                {username && <label onClick={handleShow} className="btn btn-link">Login another way     </label>} <label className="btn btn-link"><a href="/login">Cancel</a></label>
                 <Modal show={show} onHide={handleClose}>
                     <Modal.Header closeButton>
                         <Modal.Title>Enter RecoveryCode</Modal.Title>

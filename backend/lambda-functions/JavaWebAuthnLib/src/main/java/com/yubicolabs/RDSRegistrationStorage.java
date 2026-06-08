@@ -5,7 +5,6 @@ import com.amazonaws.services.rdsdata.AWSRDSData;
 import com.amazonaws.services.rdsdata.AWSRDSDataClient;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.yubico.internal.util.CollectionUtil;
 import com.yubico.webauthn.AssertionResult;
 import com.yubico.webauthn.CredentialRepository;
 import com.yubico.webauthn.RegisteredCredential;
@@ -34,7 +33,10 @@ public class RDSRegistrationStorage implements RegistrationStorage, CredentialRe
     private static final String DATABASE = System.getenv("DatabaseName");
 
     private final Clock clock = Clock.systemDefaultZone();
-    private final Gson gson = new GsonBuilder().create();
+    private final Gson gson = new GsonBuilder()
+        .registerTypeAdapter(java.time.Instant.class, InstantTypeAdapter.INSTANCE)
+        .registerTypeAdapterFactory(OptionalTypeAdapterFactory.INSTANCE)
+        .create();
 
     private final RdsDataClient client;
 
@@ -232,7 +234,7 @@ public class RDSRegistrationStorage implements RegistrationStorage, CredentialRe
 
     @Override
     public Set<RegisteredCredential> lookupAll(ByteArray credentialId) {
-        return CollectionUtil.immutableSet(
+        return Set.copyOf(
             getByCredentialId(credentialId).stream()
                 .map(reg -> RegisteredCredential.builder()
                     .credentialId(reg.getCredential().getCredentialId())

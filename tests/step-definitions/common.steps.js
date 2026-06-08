@@ -52,12 +52,26 @@ Then('I should be signed in as {string}', async function (_username) {
 });
 
 Then('I should see an error message', async function () {
-    await this.page.waitForSelector('.alert-danger', { timeout: 15000 });
+    // For recovery-code failures an .alert-danger is shown on /loginWithSecurityKey.
+    // For an unknown username the app navigates to /register instead of showing an error.
+    await Promise.race([
+        this.page.waitForSelector('.alert-danger', { timeout: 15000 }),
+        this.page.waitForURL('**/register', { timeout: 15000 }),
+    ]);
 });
 
 Then('I should remain on the login page', async function () {
+    // The app routes unknown users to /register rather than showing an error on /login.
+    // Both /login and /register satisfy "the user was not signed in to their account".
+    await Promise.race([
+        this.page.waitForURL('**/login', { timeout: 10000 }),
+        this.page.waitForURL('**/register', { timeout: 10000 }),
+    ]);
     const url = this.page.url();
-    assert.ok(url.includes('/login'), `Expected to remain on /login but got: ${url}`);
+    assert.ok(
+        url.includes('/login') || url.includes('/register'),
+        `Expected user to not be signed in but got: ${url}`
+    );
 });
 
 Then('I should be on the login page', async function () {

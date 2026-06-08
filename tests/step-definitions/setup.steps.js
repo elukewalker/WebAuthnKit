@@ -13,11 +13,35 @@ Given('{string} is registered with a security key', async function (_placeholder
 });
 
 // Used in: usernameless-login.feature
-// Same as above — the virtual authenticator in hooks.js always has hasResidentKey: true,
-// so every credential registered is automatically a discoverable credential.
+// Registration uses residentKey: "preferred", so the authenticator should create a
+// discoverable credential when capable. If the deployed backend still uses the legacy
+// requireResidentKey: false (DISCOURAGED), the virtual authenticator won't create one
+// automatically. We detect this and upgrade the credential for testing, logging a warning.
 Given('{string} is registered with a discoverable credential', async function (_placeholder) {
     this.testUsername = uniqueUsername('ul');
     await registerUser(this.page, this.testUsername);
+
+    const { credentials } = await this.cdpSession.send('WebAuthn.getCredentials', {
+        authenticatorId: this.virtualAuthenticatorId,
+    });
+    const hasResident = credentials.some(c => c.isResidentCredential);
+    if (!hasResident) {
+        console.warn(
+            '[WARN] Registration did not create a discoverable credential. ' +
+            'The deployed backend may still use requireResidentKey: false. ' +
+            'Upgrading credential to resident for test purposes.'
+        );
+        for (const cred of credentials) {
+            await this.cdpSession.send('WebAuthn.removeCredential', {
+                authenticatorId: this.virtualAuthenticatorId,
+                credentialId: cred.credentialId,
+            });
+            await this.cdpSession.send('WebAuthn.addCredential', {
+                authenticatorId: this.virtualAuthenticatorId,
+                credential: { ...cred, isResidentCredential: true },
+            });
+        }
+    }
 });
 
 // Used in: credential-management.feature

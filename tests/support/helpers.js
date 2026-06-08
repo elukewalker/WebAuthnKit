@@ -101,6 +101,33 @@ async function captureRecoveryCodes(page) {
     return codes;
 }
 
+// Signs out via the Logout link and waits for the login URL.
+async function signOutUser(page) {
+    await page.click('a:has-text("Logout")');
+    await page.waitForURL('**/login', { timeout: 10000 }).catch(() => {});
+}
+
+// Opens recovery modal, fills code, submits, waits for dashboard.
+// Auto-presence must be disabled before calling.
+async function signInWithRecoveryCode(page, code) {
+    await page.click('text=Login another way');
+    await page.waitForSelector('.modal-title:has-text("Enter RecoveryCode")', { timeout: 10000 });
+    await page.fill('input[name="code"]', code);
+    await page.locator('input[name="code"]').press('Enter');
+    await page.waitForURL('**/', { timeout: 30000 });
+}
+
+// Dismisses the Recovery Codes modal if currently visible.
+async function dismissRecoveryCodesModal(page) {
+    const visible = await page.isVisible('.modal-title:has-text("Recovery Codes")');
+    if (visible) {
+        await page.click('.modal-footer button:has-text("Close")');
+        await page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
+            state: 'hidden', timeout: 10000,
+        });
+    }
+}
+
 module.exports = {
     APP_URL,
     uniqueUsername,
@@ -109,4 +136,7 @@ module.exports = {
     signInUser,
     navigateToSecurityKeyPage,
     captureRecoveryCodes,
+    signOutUser,
+    signInWithRecoveryCode,
+    dismissRecoveryCodesModal,
 };

@@ -161,9 +161,22 @@ async function verifyMakeCredentialResponse(attestationResponse, event) {
     try {
         let response = await lambdaClient.send(new InvokeCommand(params));
 
+        // Decode tail logs from JavaWebAuthnLib to surface the actual error
+        if (response.LogResult) {
+            const javaLogs = Buffer.from(response.LogResult, 'base64').toString('utf-8');
+            console.log('[JavaWebAuthnLib LOGS]:', javaLogs);
+        }
+
         const payloadString = new TextDecoder().decode(response.Payload);
         let payload = JSON.parse(payloadString);
-        
+
+        console.log('[VerifyAuth] finishRegistration response (first 600 chars):', payloadString.slice(0, 600));
+
+        // If the Java Lambda returned a Gson-serialized string, double-parse it
+        if (typeof payload === 'string') {
+            payload = JSON.parse(payload);
+        }
+
         if(payload.credential) {
             return true;
         } else {
@@ -197,6 +210,11 @@ async function verifyAssertionResponse (assertionResponse, event) {
 
         const payloadString = new TextDecoder().decode(response.Payload);
         let payload = JSON.parse(payloadString);
+
+        // If the Java Lambda returned a Gson-serialized string, double-parse it
+        if (typeof payload === 'string') {
+            payload = JSON.parse(payload);
+        }
 
         return (payload.success === true);
     } catch (err) {

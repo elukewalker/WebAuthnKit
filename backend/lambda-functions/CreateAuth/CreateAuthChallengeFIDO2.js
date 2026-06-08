@@ -92,7 +92,7 @@ async function getCreateCredentialsOptions(event, creds) {
         "username": event.request.userAttributes.name,
         "displayName": event.request.userAttributes.name,
         "credentialNickname": "Security Key",
-        "requireResidentKey": false,
+        "residentKey": "preferred",
         "uid": event.request.userAttributes.sub
     });
 
@@ -109,18 +109,23 @@ async function getCreateCredentialsOptions(event, creds) {
 
         let startRegisterPayload = JSON.parse(JSON.parse(payloadString));
         
-        const coseLookup = {"ES256": -7, "EdDSA": -8, "RS256": -257};
-        
-        startRegisterPayload.requestId = startRegisterPayload.requestId.base64;
-        startRegisterPayload.publicKeyCredentialCreationOptions.user.id = startRegisterPayload.publicKeyCredentialCreationOptions.user.id.base64;
-        startRegisterPayload.publicKeyCredentialCreationOptions.challenge = startRegisterPayload.publicKeyCredentialCreationOptions.challenge.base64;
+        const coseLookup = {"ES256": -7, "EdDSA": -8, "RS256": -257, "ES384": -35, "ES512": -36, "Ed448": -9, "RS384": -258, "RS512": -259};
+
+        startRegisterPayload.requestId = startRegisterPayload.requestId.base64url || startRegisterPayload.requestId.base64;
+        startRegisterPayload.publicKeyCredentialCreationOptions.user.id = startRegisterPayload.publicKeyCredentialCreationOptions.user.id.base64url || startRegisterPayload.publicKeyCredentialCreationOptions.user.id.base64;
+        startRegisterPayload.publicKeyCredentialCreationOptions.challenge = startRegisterPayload.publicKeyCredentialCreationOptions.challenge.base64url || startRegisterPayload.publicKeyCredentialCreationOptions.challenge.base64;
         startRegisterPayload.publicKeyCredentialCreationOptions.attestation = startRegisterPayload.publicKeyCredentialCreationOptions.attestation.toLowerCase();
-        startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification = startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification.toLowerCase();
-        startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams = startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams.map( (cred) => { 
+        if (startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification) {
+            startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification = startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.userVerification.toLowerCase();
+        }
+        if (startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.residentKey) {
+            startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.residentKey = startRegisterPayload.publicKeyCredentialCreationOptions.authenticatorSelection.residentKey.toLowerCase();
+        }
+        startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams = startRegisterPayload.publicKeyCredentialCreationOptions.pubKeyCredParams.map( (cred) => {
             cred.type = cred.type.toLowerCase().replace('_','-');
             cred.alg = coseLookup[cred.alg];
             return cred;
-        });
+        }).filter(cred => cred.alg !== undefined);
         
         return JSON.stringify(startRegisterPayload);
     } catch (err) {
@@ -150,12 +155,14 @@ async function getCredentialsOptions(username) {
 
         let startAuthPayload = JSON.parse(JSON.parse(payloadString));
 
-        startAuthPayload.requestId = startAuthPayload.requestId.base64;
-        startAuthPayload.publicKeyCredentialRequestOptions.userVerification = startAuthPayload.publicKeyCredentialRequestOptions.userVerification.toLowerCase();
-        startAuthPayload.publicKeyCredentialRequestOptions.challenge = startAuthPayload.publicKeyCredentialRequestOptions.challenge.base64;
-        startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials = startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials.map( (cred) => { 
+        startAuthPayload.requestId = startAuthPayload.requestId.base64url || startAuthPayload.requestId.base64;
+        if (startAuthPayload.publicKeyCredentialRequestOptions.userVerification) {
+            startAuthPayload.publicKeyCredentialRequestOptions.userVerification = startAuthPayload.publicKeyCredentialRequestOptions.userVerification.toLowerCase();
+        }
+        startAuthPayload.publicKeyCredentialRequestOptions.challenge = startAuthPayload.publicKeyCredentialRequestOptions.challenge.base64url || startAuthPayload.publicKeyCredentialRequestOptions.challenge.base64;
+        startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials = startAuthPayload.publicKeyCredentialRequestOptions.allowCredentials.map( (cred) => {
             cred.type = cred.type.toLowerCase().replace('_','-');
-            cred.id = cred.id.base64;
+            cred.id = cred.id.base64url || cred.id.base64;
             return cred
         });
         

@@ -20,9 +20,9 @@ async function getUserIdFromUserName(userName) {
 
 // Get current user profile details from [user] table in database 
 async function getUserProfile(userId) {
-    let userProfile = await dbConfig.query('SELECT id, username, lastLoginDate, challenge FROM user WHERE cognito_id = :userId', { userId: userId });
+    let userProfile = await dbConfig.query('SELECT id, userName, lastLoginDate, challenge FROM user WHERE cognito_id = :userId', { userId: userId });
     let id = userProfile.records[0].id;
-    let un = userProfile.records[0].username;
+    let un = userProfile.records[0].userName;
     let logdate = userProfile.records[0].lastLoginDate;
     let challenge = userProfile.records[0].challenge;
     return { "id": id, "username": un,  "lastLoginDate": logdate, "challenge": challenge};

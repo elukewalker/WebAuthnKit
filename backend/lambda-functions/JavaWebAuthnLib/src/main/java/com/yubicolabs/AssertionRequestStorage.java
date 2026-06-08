@@ -19,7 +19,10 @@ public class AssertionRequestStorage {
     private static final String SECRET_ARN = System.getenv("DBSecretsStoreArn");
     private static final String DATABASE = System.getenv("DatabaseName");
 
-    private final Gson gson = new GsonBuilder().create();
+    private final Gson gson = new GsonBuilder()
+        .registerTypeAdapter(java.time.Instant.class, InstantTypeAdapter.INSTANCE)
+        .registerTypeAdapterFactory(OptionalTypeAdapterFactory.INSTANCE)
+        .create();
 
     private final RdsDataClient client;
 
