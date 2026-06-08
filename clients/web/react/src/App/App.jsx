@@ -9,6 +9,7 @@ import { HomePage } from '../HomePage';
 import { LoginPage } from '../LoginPage';
 import { LoginWithSecurityKeyPage } from '../LoginWithSecurityKeyPage';
 import { RegisterPage } from '../RegisterPage';
+import { PasskeyLoginPage } from '../PasskeyLoginPage';
 
 import { Amplify } from 'aws-amplify';
 import aws_exports from '../aws-exports';
@@ -51,6 +52,7 @@ function App() {
                                 <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
                                 <Route path="/login" element={<LoginPage />} />
                                 <Route path="/loginWithSecurityKey" element={<LoginWithSecurityKeyPage />} />
+                                <Route path="/passkey" element={<PasskeyLoginPage />} />
                                 <Route path="/register" element={<RegisterPage />} />
                                 <Route path="*" element={<Navigate to="/" replace />} />
                             </Routes>

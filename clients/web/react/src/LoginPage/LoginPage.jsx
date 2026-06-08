@@ -1,10 +1,16 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Button, Row, Col } from 'react-bootstrap';
 
-import { userActions } from '../_actions';
+import { userActions, alertActions } from '../_actions';
+import { get } from '@github/webauthn-json';
+import { signIn, confirmSignIn, fetchAuthSession } from 'aws-amplify/auth';
+import axios from 'axios';
+import aws_exports from '../aws-exports';
 import validate from 'validate.js';
+
+axios.defaults.baseURL = aws_exports.apiEndpoint;
 
 function LoginPage() {
     const [inputs, setInputs] = useState({
@@ -18,6 +24,8 @@ function LoginPage() {
     const authError = useSelector(state => state.authentication.error);
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const abortControllerRef = useRef(new AbortController());
+    const defaultInvalidPIN = -1;
     var constraints = {
         username: {
             presence: true,
@@ -33,9 +41,65 @@ function LoginPage() {
         }
     };
 
+    function isMediationAvailable() {
+        const pubKeyCred = window.PublicKeyCredential;
+        if (pubKeyCred &&
+            typeof pubKeyCred.isConditionalMediationAvailable === 'function' &&
+            pubKeyCred.isConditionalMediationAvailable()) {
+            return true;
+        }
+        return false;
+    }
+
+    const passkeyAutofill = useCallback(async (signal) => {
+        try {
+            const response = await axios.get('/users/credentials/fido2/authenticate');
+            const requestOptions = response.data;
+
+            const assertionResponse = await get({
+                publicKey: requestOptions.publicKeyCredentialRequestOptions,
+                mediation: 'conditional',
+                signal: signal,
+            });
+
+            const userHandle = assertionResponse.response.userHandle;
+            const challengeResponse = {
+                credential: assertionResponse,
+                requestId: requestOptions.requestId,
+                pinCode: defaultInvalidPIN,
+            };
+
+            const signInResult = await signIn({ username: userHandle, options: { authFlowType: 'CUSTOM_WITHOUT_SRP' } });
+
+            if (signInResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && signInResult.nextStep?.additionalInfo?.type === 'webauthn.get') {
+                const user = await confirmSignIn({ challengeResponse: JSON.stringify(challengeResponse) });
+                const session = await fetchAuthSession();
+                dispatch(alertActions.success('Authentication successful'));
+                let userData = {
+                    id: 1,
+                    username: user.signInDetails?.loginId || userHandle,
+                    token: session.tokens?.accessToken?.toString()
+                };
+                localStorage.setItem('user', JSON.stringify(userData));
+                navigate('/');
+            }
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+            console.error('Passkey autofill error:', err);
+        }
+    }, [dispatch, navigate]);
+
     // reset login status
     useEffect(() => {
         dispatch(userActions.logout());
+
+        if (isMediationAvailable()) {
+            passkeyAutofill(abortControllerRef.current.signal);
+        }
+
+        return () => {
+            abortControllerRef.current.abort();
+        };
     }, []);
 
     // Handle navigation after exists() action completes
@@ -57,6 +121,9 @@ function LoginPage() {
     function handleSubmit(e) {
         e.preventDefault();
 
+        // Abort any in-progress conditional mediation before starting modal auth
+        abortControllerRef.current.abort();
+
         setSubmitted(true);
 
         const result = validate({username: username}, constraints)
@@ -68,10 +135,11 @@ function LoginPage() {
         }
 
         dispatch(userActions.exists(username.toLocaleLowerCase()));
-   
+
     }
 
     function handleLoginWithoutUsername() {
+        abortControllerRef.current.abort();
         localStorage.removeItem('username');
         navigate('/loginWithSecurityKey');
     }
@@ -83,7 +151,7 @@ function LoginPage() {
             <form name="form" onSubmit={handleSubmit}>
                 <div className="form-group">
                             <label>Username</label>
-                            <input type="text" name="username" autoFocus value={username} onChange={handleChange} className={'form-control' + (submitted && invalidUsername ? ' is-invalid' : '')} />
+                            <input type="text" name="username" autoFocus value={username} onChange={handleChange} autoComplete="username webauthn" className={'form-control' + (submitted && invalidUsername ? ' is-invalid' : '')} />
                             {submitted && invalidUsername &&
                                 <div className="invalid-feedback">{invalidUsername}</div>
                             }
