@@ -701,33 +701,31 @@ Resources:
       FunctionName:
         Ref: CreateDBSchemaCallerFuncName
       InlineCode: |
-        var aws = require('aws-sdk');
-        var cfnResponse = require('cfn-response');
+        const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+        const cfnResponse = require('cfn-response');
 
         exports.handler = function(event, context) {
           console.log('RECEIVED Event: ', JSON.stringify(event, null, 2));
-          if (event.RequestType == 'Delete') {
-            cfnResponse.send(event, context, cfnResponse.SUCCESS);
+          if (event.RequestType === 'Delete') {
+            cfnResponse.send(event, context, cfnResponse.SUCCESS, {});
             return;
           }
-          var responseStatus = "FAILED";
-          var responseData = {};
-          var functionName = event.ResourceProperties.FunctionName;
-          var lambda = new aws.Lambda();
-          lambda.invoke({ FunctionName: functionName }, function(err, invokeResult) {
-              if (err) {
-                  responseData = {Error: "Invoke call failed"};
-                  console.log(responseData.Error + ":\n", err);
-              }
-              else responseStatus = "SUCCESS";
-              cfnResponse.send(event, context, responseStatus, responseData);
-          });
+          const client = new LambdaClient({});
+          const command = new InvokeCommand({ FunctionName: event.ResourceProperties.FunctionName });
+          client.send(command)
+            .then(function() {
+              cfnResponse.send(event, context, cfnResponse.SUCCESS, {});
+            })
+            .catch(function(err) {
+              console.error('Invoke failed:', err);
+              cfnResponse.send(event, context, cfnResponse.FAILED, { Error: 'Invoke call failed' });
+            });
         };
       Handler: index.handler
       Runtime: nodejs20.x
       Description: Invokes the database schema creation function.
       MemorySize: 128
-      Timeout: 20
+      Timeout: 60
       Role:
         Fn::GetAtt:
           - "CreateDBSchemaCallerLambdaExecutionRole"
