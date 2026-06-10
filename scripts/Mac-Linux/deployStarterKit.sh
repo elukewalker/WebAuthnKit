@@ -230,9 +230,11 @@ echo "Step 10 [Web Client] Retrieving Amplify App Id from CloudFormation Stack O
 AMPLIFY_APP_ID=$(aws cloudformation --region $AWS_REGION describe-stacks --stack-name $CF_STACK_NAME --profile $AWS_CLI_PROFILE --query "Stacks[0].Outputs[?OutputKey=='AmplifyHostingAppId'].OutputValue" --output text)
 
 #11 |*********** Deploy React App to AWS Amplify Hosting **************************|
-# Call start-deployment of the client web app by passing in the zip file to the previously created Amplify Hosting AMPLIFY_HOSTING_BRANCH_NAME branch 
+# Generate a presigned URL (1 hour TTL) so Amplify can download the zip from the private S3 bucket
+# Using a presigned URL avoids the need for a bucket policy granting Amplify service access
 echo "Step 11 [Web Client] Deploying React Web Client to Amplify Hosting"
-aws amplify start-deployment --app-id $AMPLIFY_APP_ID --branch-name $AMPLIFY_HOSTING_BRANCH_NAME --region $AWS_REGION --source-url s3://$S3_BUCKET_NAME/Archive.zip --profile $AWS_CLI_PROFILE &> /dev/null
+ARCHIVE_PRESIGNED_URL=$(aws s3 presign s3://$S3_BUCKET_NAME/Archive.zip --expires-in 3600 --region $AWS_REGION --profile $AWS_CLI_PROFILE)
+aws amplify start-deployment --app-id $AMPLIFY_APP_ID --branch-name $AMPLIFY_HOSTING_BRANCH_NAME --region $AWS_REGION --source-url "$ARCHIVE_PRESIGNED_URL" --profile $AWS_CLI_PROFILE
 
 #12 |********** Launch Amplify Hosting Endpoint in Browser ************************|
 AmplifyHostingEndpoint=$(aws cloudformation --region $AWS_REGION describe-stacks --stack-name $CF_STACK_NAME --profile $AWS_CLI_PROFILE --query "Stacks[0].Outputs[?OutputKey=='AmplifyHostingEndpoint'].OutputValue" --output text)
