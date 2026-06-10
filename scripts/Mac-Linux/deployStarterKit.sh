@@ -154,7 +154,7 @@ docker run -w /webauthnkit/backend --volume=$STARTER_KIT_DIR:/webauthnkit starte
 echo "Step 5 [Deployment] Running SAM deploy..."
 docker run -w /webauthnkit/backend --volume=$STARTER_KIT_DIR:/webauthnkit \
 --volume=${HOME}/.aws:/home/developer/.aws:ro \
---volume=${HOME}/.aws/sso:/home/developer/.aws/sso:ro starterkit:dev \
+--volume=${HOME}/.aws/sso:/home/developer/.aws/sso starterkit:dev \
 /usr/local/bin/sam deploy \
 --s3-bucket $S3_BUCKET_NAME \
 --stack-name $CF_STACK_NAME \

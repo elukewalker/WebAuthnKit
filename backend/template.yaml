@@ -103,6 +103,64 @@ Conditions:
   isManual: !Equals [!Ref AmplifyDeployType, "manual"]
 
 Resources:
+  # VPC and Subnet infrastructure (default VPC not available in this account/region)
+  WebAuthnVPC:
+    Type: AWS::EC2::VPC
+    DeletionPolicy: Delete
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-vpc"
+
+  WebAuthnSubnetA:
+    Type: AWS::EC2::Subnet
+    DeletionPolicy: Delete
+    Properties:
+      VpcId: !Ref WebAuthnVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: us-east-2a
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-subnet-a"
+
+  WebAuthnSubnetB:
+    Type: AWS::EC2::Subnet
+    DeletionPolicy: Delete
+    Properties:
+      VpcId: !Ref WebAuthnVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: us-east-2b
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-subnet-b"
+
+  WebAuthnSubnetC:
+    Type: AWS::EC2::Subnet
+    DeletionPolicy: Delete
+    Properties:
+      VpcId: !Ref WebAuthnVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: us-east-2c
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-subnet-c"
+
+  WebAuthnDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    DeletionPolicy: Delete
+    Properties:
+      DBSubnetGroupDescription: Subnet group for WebAuthnKit Aurora Serverless v2 cluster
+      SubnetIds:
+        - !Ref WebAuthnSubnetA
+        - !Ref WebAuthnSubnetB
+        - !Ref WebAuthnSubnetC
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-db-subnet-group"
+
   # RDS Aurora Serverless Cluster - Encryption enabled by default
   # Warning: NOT FREE TIER - Aurora Serverless does not support free tier instance class
   # We have reduced capacity to max of 1 but turned off AutoPause to avoid cold starts
@@ -121,14 +179,23 @@ Resources:
       DatabaseName:
         Ref: DatabaseName
       Engine: aurora-mysql
-      EngineMode: serverless
+      EngineVersion: "8.0.mysql_aurora.3.12.0"
+      EngineMode: provisioned
       EnableHttpEndpoint: true
       StorageEncrypted: true
-      ScalingConfiguration:
-        AutoPause: false
-        MaxCapacity: 1
-        MinCapacity: 1
-        #SecondsUntilAutoPause: 7200
+      DBSubnetGroupName: !Ref WebAuthnDBSubnetGroup
+      ServerlessV2ScalingConfiguration:
+        MaxCapacity: 2
+        MinCapacity: 0.5
+  # Aurora Serverless v2 requires at least one DB instance with db.serverless class
+  RDSAuroraServerlessInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    DependsOn: RDSAuroraServerlessCluster
+    Properties:
+      DBClusterIdentifier: !Ref RDSAuroraServerlessCluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-mysql
   # Create a SecretsManager to manage the Aurora Serverless credentials
   RDSAuroraClusterMasterSecret:
     Type: "AWS::SecretsManager::Secret"
@@ -1085,6 +1152,7 @@ Resources:
     DependsOn:
       - CreateDBSchemaFunctionCaller
       - CreateDBSchemaFunction
+      - RDSAuroraServerlessInstance
   # Allow API Gateway to invoke Lambda function API from Console
   APIGWLambdaPermission:
     Type: "AWS::Lambda::Permission"
