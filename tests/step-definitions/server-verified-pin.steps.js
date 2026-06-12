@@ -146,7 +146,8 @@ When('I change the server-verified PIN from {string} to {string}', async functio
     await this.page.waitForSelector('.modal.show input[name="pin"]', { timeout: 10000 });
     await this.page.fill('.modal.show input[name="pin"]', newPin);
     await this.page.fill('.modal.show input[name="confirmPin"]', newPin);
-    await this.page.click('.modal.show .modal-footer button:has-text("Submit")');
+    // The "change" type modal submit button says "Change U2F Password"
+    await this.page.click('.modal.show .modal-footer button:has-text("Change U2F Password")');
 });
 
 Then('the PIN change should succeed', async function () {
