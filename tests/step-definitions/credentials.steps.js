@@ -2,24 +2,28 @@ const { Given, When, Then } = require('@cucumber/cucumber');
 const assert = require('assert');
 const { APP_URL } = require('../support/helpers');
 
+// Selector for Edit buttons inside the Security Keys card.
+// Credentials render as div.d-flex rows with a <button>Edit</button>, NOT as ul>li>a.
+const CRED_EDIT_BTN = '.card:has(h5:has-text("Security Keys")) button:has-text("Edit")';
+
 // The recovery codes modal opens AFTER the getAll API call returns (when
 // recoveryCodesViewed is set to false). Wait for either the modal or the credential
 // list to appear, then dismiss the modal if it showed up.
 async function waitForDashboardReady(page) {
     await Promise.race([
         page.waitForSelector('.modal-title:has-text("Recovery Codes")', { timeout: 30000 }),
-        page.waitForSelector('ul li:has(a:has-text("Edit"))', { timeout: 30000 }),
+        page.waitForSelector(CRED_EDIT_BTN, { timeout: 30000 }),
     ]);
     const modalVisible = await page.isVisible('.modal-title:has-text("Recovery Codes")');
     if (modalVisible) {
-        await page.click('.modal-footer button:has-text("Close")');
+        await page.click('.modal-footer button:has-text("Not now")');
         await page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
             state: 'hidden',
             timeout: 10000,
         });
     }
     // Ensure the credential list is visible after the modal (if any) is dismissed
-    await page.waitForSelector('ul li:has(a:has-text("Edit"))', { timeout: 15000 });
+    await page.waitForSelector(CRED_EDIT_BTN, { timeout: 15000 });
 }
 
 // Waits for the credential list to be visible after a dashboard-modifying operation.
@@ -34,7 +38,7 @@ Given('{string} has at least one registered credential named {string}', async fu
     await waitForDashboardReady(this.page);
 
     // Click Edit on the first (and only) credential from registration
-    await this.page.locator('ul li:has(a:has-text("Edit"))').first().locator('a:has-text("Edit")').click();
+    await this.page.locator(CRED_EDIT_BTN).first().click();
 
     await this.page.waitForSelector('.modal-title:has-text("Edit your Security Key")', { timeout: 10000 });
     await this.page.fill('input[name="nickname"]', credentialName);
@@ -45,32 +49,40 @@ Given('{string} has at least one registered credential named {string}', async fu
     });
 
     // Wait for getAll to reload the credential list after the rename triggers an alert
-    await this.page.waitForSelector('ul li:has(a:has-text("Edit"))', { timeout: 30000 });
+    await this.page.waitForSelector(CRED_EDIT_BTN, { timeout: 30000 });
 });
 
 Given('I am on the dashboard', async function () {
     await this.page.waitForURL(`${APP_URL}/`, { timeout: 10000 });
-    await this.page.waitForSelector('h3:has-text("Security Keys")', { timeout: 10000 });
+    await this.page.waitForSelector('h5:has-text("Security Keys")', { timeout: 10000 });
+    // Dismiss recovery codes modal if it auto-opened (recoveryCodesViewed === false)
+    const modalVisible = await this.page.isVisible('.modal-title:has-text("Recovery Codes")').catch(() => false);
+    if (modalVisible) {
+        await this.page.click('.modal-footer button:has-text("Not now")');
+        await this.page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
+            state: 'hidden',
+            timeout: 10000,
+        });
+    }
 });
 
 Then('I should see at least one credential in the list', async function () {
-    await this.page.waitForSelector('ul li:has(a:has-text("Edit"))', { timeout: 30000 });
-    const count = await this.page.locator('ul li:has(a:has-text("Edit"))').count();
+    await this.page.waitForSelector(CRED_EDIT_BTN, { timeout: 30000 });
+    const count = await this.page.locator(CRED_EDIT_BTN).count();
     assert.ok(count >= 1, `Expected at least 1 credential but found ${count}`);
 });
 
 Then('I should see the credential {string} in the list', async function (name) {
-    // Wait for the credential with the expected nickname text to appear.
-    // The credential renders as "<nickname> - Edit" in an <li>.
-    const selector = `ul li:has-text("${name}")`;
+    // Credential nickname renders as h5 inside the Security Keys card body
+    const selector = `.card:has(h5:has-text("Security Keys")) .card-body h5:has-text("${name}")`;
     await this.page.waitForSelector(selector, { timeout: 30000 });
     const count = await this.page.locator(selector).count();
     assert.ok(count >= 1, `Expected credential "${name}" in the list but it was not found`);
 });
 
 When('I open the edit modal for the first credential', async function () {
-    await this.page.waitForSelector('ul li:has(a:has-text("Edit"))', { timeout: 30000 });
-    await this.page.locator('ul li:has(a:has-text("Edit"))').first().locator('a:has-text("Edit")').click();
+    await this.page.waitForSelector(CRED_EDIT_BTN, { timeout: 30000 });
+    await this.page.locator(CRED_EDIT_BTN).first().click();
     await this.page.waitForSelector('.modal-title:has-text("Edit your Security Key")', { timeout: 10000 });
 });
 
@@ -89,8 +101,8 @@ When('I save the credential changes', async function () {
 Then('the credential list should reload successfully', async function () {
     // After save, the update triggers getAll via alert -> the credential list briefly
     // disappears (GETALL_REQUEST wipes items) then reappears when the API responds.
-    await this.page.waitForSelector('ul li:has(a:has-text("Edit"))', { timeout: 30000 });
-    const count = await this.page.locator('ul li:has(a:has-text("Edit"))').count();
+    await this.page.waitForSelector(CRED_EDIT_BTN, { timeout: 30000 });
+    const count = await this.page.locator(CRED_EDIT_BTN).count();
     assert.ok(count >= 1, `Expected at least 1 credential after rename but found ${count}`);
 });
 
@@ -104,16 +116,16 @@ When('I delete the credential', async function () {
 });
 
 Then('no credentials should remain in the list', async function () {
-    await this.page.waitForSelector('ul li a:has-text("Edit")', {
+    await this.page.waitForSelector(CRED_EDIT_BTN, {
         state: 'detached',
         timeout: 15000,
     });
-    const remaining = await this.page.locator('ul li a:has-text("Edit")').count();
+    const remaining = await this.page.locator(CRED_EDIT_BTN).count();
     assert.strictEqual(remaining, 0, `Expected no credentials but found ${remaining}`);
 });
 
 Then('I should see the credential {string} in the credential list', async function (name) {
-    const selector = `ul li:has-text("${name}")`;
+    const selector = `.card:has(h5:has-text("Security Keys")) .card-body h5:has-text("${name}")`;
     await this.page.waitForSelector(selector, { timeout: 30000 });
     const count = await this.page.locator(selector).count();
     assert.ok(count >= 1, `Expected credential "${name}" in the list but it was not found`);
@@ -128,8 +140,8 @@ Then('{string} should no longer appear in the credential list', async function (
 });
 
 When('I rename credential {string} to {string}', async function (oldName, newName) {
-    await this.page.waitForSelector('ul li:has(a:has-text("Edit"))', { timeout: 30000 });
-    await this.page.locator('ul li:has(a:has-text("Edit"))').first().locator('a:has-text("Edit")').click();
+    await this.page.waitForSelector(CRED_EDIT_BTN, { timeout: 30000 });
+    await this.page.locator(CRED_EDIT_BTN).first().click();
     await this.page.waitForSelector('.modal-title:has-text("Edit your Security Key")', { timeout: 10000 });
     await this.page.fill('input[name="nickname"]', newName);
     await this.page.click('.modal-footer button:has-text("Save changes")');
@@ -140,8 +152,8 @@ When('I rename credential {string} to {string}', async function (oldName, newNam
 });
 
 When('I delete credential {string}', async function (name) {
-    await this.page.waitForSelector('ul li:has(a:has-text("Edit"))', { timeout: 30000 });
-    await this.page.locator('ul li:has(a:has-text("Edit"))').first().locator('a:has-text("Edit")').click();
+    await this.page.waitForSelector(CRED_EDIT_BTN, { timeout: 30000 });
+    await this.page.locator(CRED_EDIT_BTN).first().click();
     await this.page.waitForSelector('.modal-title:has-text("Edit your Security Key")', { timeout: 10000 });
     await this.page.click('.modal-footer button:has-text("Delete")');
     await this.page.waitForSelector('.modal-title:has-text("Edit your Security Key")', {
@@ -151,10 +163,10 @@ When('I delete credential {string}', async function (name) {
 });
 
 Then('no credential should exist for {string} in the system', async function (_placeholder) {
-    await this.page.waitForSelector('ul li a:has-text("Edit")', {
+    await this.page.waitForSelector(CRED_EDIT_BTN, {
         state: 'detached',
         timeout: 10000,
     });
-    const remaining = await this.page.locator('ul li a:has-text("Edit")').count();
+    const remaining = await this.page.locator(CRED_EDIT_BTN).count();
     assert.strictEqual(remaining, 0, `Expected no credentials but found ${remaining}`);
 });

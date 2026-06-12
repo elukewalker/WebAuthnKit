@@ -30,7 +30,7 @@ Given('{string} has used all their recovery codes', async function (_placeholder
         // Dismiss recovery codes modal if it opens
         const modalVisible = await this.page.isVisible('.modal-title:has-text("Recovery Codes")').catch(() => false);
         if (modalVisible) {
-            await this.page.click('.modal-footer button:has-text("Close")');
+            await this.page.click('.modal-footer button:has-text("Not now")');
             await this.page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
                 state: 'hidden',
                 timeout: 10000,
@@ -38,7 +38,7 @@ Given('{string} has used all their recovery codes', async function (_placeholder
         }
 
         // Sign out before next iteration (or after last one)
-        await this.page.click('a:has-text("Logout")');
+        await this.page.click('button:has-text("Sign Out")');
         await this.page.waitForURL('**/login', { timeout: 10000 }).catch(() => {});
     }
 });
@@ -58,5 +58,5 @@ Then('I should see a warning that all recovery codes have been used', async func
 Then('I should see a prompt to generate new recovery codes', async function () {
     await this.page.waitForSelector('h6:has-text("Generate new recovery codes")', { timeout: 10000 });
     // Close the modal now that the assertion is verified
-    await this.page.click('.modal-footer button:has-text("Close")');
+    await this.page.click('.modal-footer button:has-text("Not now")');
 });

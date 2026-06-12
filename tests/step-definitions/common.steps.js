@@ -15,7 +15,7 @@ When('I click Continue', async function () {
 });
 
 When('I click Sign Out', async function () {
-    await this.page.click('a:has-text("Logout")');
+    await this.page.click('button:has-text("Sign Out")');
 });
 
 When('I click Cancel', async function () {
@@ -42,11 +42,11 @@ Then('I should be on the dashboard', async function () {
 });
 
 Then('I should be signed in as {string}', async function (_username) {
-    // Verify authenticated state by checking the h1 greeting on the dashboard
+    // Verify authenticated state by checking the h2 greeting on the dashboard
     await this.page.waitForURL(`${APP_URL}/`, { timeout: 10000 });
-    await this.page.waitForSelector('h1', { timeout: 10000 });
-    const heading = await this.page.textContent('h1');
-    assert.ok(heading.includes('Hi'), `Expected dashboard greeting but got: ${heading}`);
+    await this.page.waitForSelector('h2', { timeout: 10000 });
+    const heading = await this.page.textContent('h2');
+    assert.ok(heading.includes('Welcome'), `Expected dashboard greeting but got: ${heading}`);
 });
 
 Then('I should see an error message', async function () {

@@ -51,7 +51,7 @@ Given('I have already used one recovery code', async function () {
     }
 
     // Sign out and navigate back to the recovery code sign-in page
-    await this.page.click('a:has-text("Logout")');
+    await this.page.click('button:has-text("Sign Out")');
     await this.page.waitForURL('**/login', { timeout: 10000 }).catch(() => {});
     await navigateToLogin(this.page);
     await this.page.evaluate((username) => {
@@ -85,8 +85,8 @@ When('I enter the previously used recovery code', async function () {
 
 Then('that recovery code should be marked as used', async function () {
     // Wait for the dashboard's getAll() to complete before opening the modal.
-    await this.page.waitForSelector('h3:has-text("Security Keys")', { timeout: 15000 });
-    await this.page.waitForSelector('ul li:has(a:has-text("Edit"))', { timeout: 30000 });
+    await this.page.waitForSelector('h5:has-text("Security Keys")', { timeout: 15000 });
+    await this.page.waitForSelector('.card:has(h5:has-text("Security Keys")) button:has-text("Edit")', { timeout: 30000 });
     await this.page.waitForTimeout(1000);
 
     await this.page.click('button:has-text("Recovery Codes")');
@@ -96,5 +96,5 @@ Then('that recovery code should be marked as used', async function () {
     const countText = await this.page.locator('text=/\\d+ Recovery Codes? remaining/').textContent();
     const count = parseInt(countText.match(/(\d+)/)[1], 10);
     assert.ok(count < 5, `Expected fewer than 5 codes remaining but found ${count}`);
-    await this.page.click('.modal-footer button:has-text("Close")');
+    await this.page.click('.modal-footer button:has-text("Not now")');
 });

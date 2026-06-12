@@ -103,13 +103,13 @@ async function captureRecoveryCodes(page) {
         }
     }
 
-    await page.click('.modal-footer button:has-text("Close")');
+    await page.click('.modal-footer button:has-text("Not now")');
     return codes;
 }
 
-// Signs out via the Logout link and waits for the login URL.
+// Signs out via the Sign Out button and waits for the login URL.
 async function signOutUser(page) {
-    await page.click('a:has-text("Logout")');
+    await page.click('button:has-text("Sign Out")');
     await page.waitForURL('**/login', { timeout: 10000 }).catch(() => {});
 }
 
@@ -128,7 +128,7 @@ async function signInWithRecoveryCode(page, username, code) {
 async function dismissRecoveryCodesModal(page) {
     const visible = await page.isVisible('.modal-title:has-text("Recovery Codes")');
     if (visible) {
-        await page.click('.modal-footer button:has-text("Close")');
+        await page.click('.modal-footer button:has-text("Not now")');
         await page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
             state: 'hidden', timeout: 10000,
         });

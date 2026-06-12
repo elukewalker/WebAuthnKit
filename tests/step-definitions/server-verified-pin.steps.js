@@ -85,12 +85,12 @@ Given('a user is registered without user verification and has PIN {string}', asy
     await this.page.waitForSelector('.modal.show', { timeout: 5000 });
     await this.page.fill('.modal.show input[name="pin"]', pin);
     await this.page.fill('.modal.show input[name="confirmPin"]', pin);
-    await this.page.click('.modal-footer button:has-text("OK")');
+    await this.page.click('.modal-footer button:has-text("Submit")');
     // After PIN is saved, confirmSignIn completes and navigates to '/'
     await this.page.waitForURL(`${APP_URL}/`, { timeout: 60000 });
 
     // Sign out so the scenario's When steps start from the login page
-    await this.page.click('a:has-text("Logout")');
+    await this.page.click('button:has-text("Sign Out")');
     await this.page.waitForURL('**/login', { timeout: 10000 }).catch(() => {});
 });
 
@@ -106,14 +106,14 @@ When('I sign in without user verification', async function () {
     await this.page.click('button:has-text("Continue")');
     // Wait for PIN dispatch modal ("Enter Server-Verified PIN") or error
     await Promise.race([
-        this.page.waitForSelector('.modal-title:has-text("Enter Server-Verified PIN")', { timeout: 30000 }),
+        this.page.waitForSelector('.modal-title:has-text("U2F Password")', { timeout: 30000 }),
         this.page.waitForSelector('.alert-danger', { timeout: 30000 }),
     ]);
 });
 
 Then('I should see the server-verified PIN entry prompt', async function () {
     // type="dispatch" modal title is "Enter Server-Verified PIN"
-    await this.page.waitForSelector('.modal-title:has-text("Enter Server-Verified PIN")', { timeout: 15000 });
+    await this.page.waitForSelector('.modal-title:has-text("U2F Password")', { timeout: 15000 });
 });
 
 // Works for both type="dispatch" (sign-in) and type="create" (registration) modals —
@@ -121,7 +121,7 @@ Then('I should see the server-verified PIN entry prompt', async function () {
 When('I enter PIN {string}', async function (pin) {
     await this.page.waitForSelector('.modal.show input[name="pin"]', { timeout: 10000 });
     await this.page.fill('.modal.show input[name="pin"]', pin);
-    await this.page.click('.modal.show .modal-footer button:has-text("OK")');
+    await this.page.click('.modal.show .modal-footer button:has-text("Submit")');
 });
 
 // Signs in using the registered UV=false credential (scenario 4 setup).
@@ -132,9 +132,9 @@ Given('I am signed in', async function () {
     await this.page.fill('input[name="username"]', this.testUsername);
     await this.page.click('button:has-text("Continue")');
     // UV=false → PIN modal appears
-    await this.page.waitForSelector('.modal-title:has-text("Enter Server-Verified PIN")', { timeout: 30000 });
+    await this.page.waitForSelector('.modal-title:has-text("U2F Password")', { timeout: 30000 });
     await this.page.fill('.modal.show input[name="pin"]', '1234');
-    await this.page.click('.modal.show .modal-footer button:has-text("OK")');
+    await this.page.click('.modal.show .modal-footer button:has-text("Submit")');
     await this.page.waitForURL(`${APP_URL}/`, { timeout: 60000 });
 });
 
@@ -146,7 +146,7 @@ When('I change the server-verified PIN from {string} to {string}', async functio
     await this.page.waitForSelector('.modal.show input[name="pin"]', { timeout: 10000 });
     await this.page.fill('.modal.show input[name="pin"]', newPin);
     await this.page.fill('.modal.show input[name="confirmPin"]', newPin);
-    await this.page.click('.modal.show .modal-footer button:has-text("OK")');
+    await this.page.click('.modal.show .modal-footer button:has-text("Submit")');
 });
 
 Then('the PIN change should succeed', async function () {
@@ -155,14 +155,14 @@ Then('the PIN change should succeed', async function () {
 });
 
 When('I sign out and sign back in without user verification', async function () {
-    await this.page.click('a:has-text("Logout")');
+    await this.page.click('button:has-text("Sign Out")');
     await this.page.waitForURL('**/login', { timeout: 10000 }).catch(() => {});
     await navigateToLogin(this.page);
     await this.page.fill('input[name="username"]', this.testUsername);
     await this.page.click('button:has-text("Continue")');
     // Wait for PIN dispatch modal or error
     await Promise.race([
-        this.page.waitForSelector('.modal-title:has-text("Enter Server-Verified PIN")', { timeout: 30000 }),
+        this.page.waitForSelector('.modal-title:has-text("U2F Password")', { timeout: 30000 }),
         this.page.waitForSelector('.alert-danger', { timeout: 30000 }),
     ]);
 });

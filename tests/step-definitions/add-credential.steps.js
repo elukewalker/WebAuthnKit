@@ -8,10 +8,15 @@ const assert = require('assert');
 // the Credentials component was remounted (see note in register step).
 When('I fill in the nickname {string}', async function (nickname) {
     this.credentialNickname = nickname;
+    // The AddCredential modal does not include a nickname field — the nickname
+    // defaults to "Security Key". Only attempt to fill it if the field is present
+    // (e.g., future versions may add it back).
     const input = this.page.locator('.modal.show input[name="nickname"]');
-    await input.waitFor({ timeout: 10000 });
-    await input.click({ clickCount: 3 }); // select-all to clear existing value
-    await input.pressSequentially(nickname);
+    const isVisible = await input.isVisible().catch(() => false);
+    if (isVisible) {
+        await input.click({ clickCount: 3 }); // select-all to clear existing value
+        await input.pressSequentially(nickname);
+    }
 });
 
 // Clicks "Register Security Key" in the Add modal, handling two failure modes:
@@ -30,7 +35,8 @@ When('I fill in the nickname {string}', async function (nickname) {
 // to absorb Lambda cold-starts in the FIDO2KitAPI Lambda.
 When('I register the new security key', async function () {
     // Count existing credentials before registering
-    const countBefore = await this.page.locator('ul li:has(a:has-text("Edit"))').count();
+    const CRED_EDIT_BTN = '.card:has(h5:has-text("Security Keys")) button:has-text("Edit")';
+    const countBefore = await this.page.locator(CRED_EDIT_BTN).count();
 
     // Snapshot and remove existing credentials from the virtual authenticator
     const { credentials: existingCreds } = await this.cdpSession.send('WebAuthn.getCredentials', {
@@ -59,17 +65,25 @@ When('I register the new security key', async function () {
 
     await this.page.click('.modal-footer button:has-text("Register Security Key")');
 
-    // Wait for the credential count to increase (don't rely on nickname text
-    // because the deployed backend has a serialization bug where credential
-    // nicknames serialize as {} on Java 17).
+    // Wait for the credential count to increase.
+    // Credentials render as div.d-flex rows with a <button>Edit</button> inside the Security Keys card.
     const expectedCount = countBefore + 1;
     await this.page.waitForFunction(
         (expected) => {
-            const items = document.querySelectorAll('ul li');
-            // Count items that contain an "Edit" link
+            const card = document.querySelector('.card');
+            // Find the Security Keys card by its h5 header
+            const cards = document.querySelectorAll('.card');
+            let secKeyCard = null;
+            cards.forEach(c => {
+                if (c.querySelector('h5') && c.querySelector('h5').textContent.includes('Security Keys')) {
+                    secKeyCard = c;
+                }
+            });
+            if (!secKeyCard) return false;
+            const buttons = secKeyCard.querySelectorAll('button');
             let count = 0;
-            items.forEach(li => {
-                if (li.querySelector('a') && li.textContent.includes('Edit')) count++;
+            buttons.forEach(btn => {
+                if (btn.textContent.trim() === 'Edit') count++;
             });
             return count >= expected;
         },
@@ -80,7 +94,7 @@ When('I register the new security key', async function () {
 
 // Asserts the total credential count.
 Then('I should have {int} registered credentials', async function (expectedCount) {
-    const credItems = this.page.locator('ul li:has(a:has-text("Edit"))');
+    const credItems = this.page.locator('.card:has(h5:has-text("Security Keys")) button:has-text("Edit")');
     const count = await credItems.count();
     assert.strictEqual(count, expectedCount, `Expected ${expectedCount} credentials but found ${count}`);
 });
