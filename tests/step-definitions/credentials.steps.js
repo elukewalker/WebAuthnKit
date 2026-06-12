@@ -16,7 +16,7 @@ async function waitForDashboardReady(page) {
     ]);
     const modalVisible = await page.isVisible('.modal-title:has-text("Recovery Codes")');
     if (modalVisible) {
-        await page.click('.modal-footer button:has-text("Not now")');
+        await page.click('.modal-footer button:has-text("Ignore")');
         await page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
             state: 'hidden',
             timeout: 10000,
@@ -58,7 +58,7 @@ Given('I am on the dashboard', async function () {
     // Dismiss recovery codes modal if it auto-opened (recoveryCodesViewed === false)
     const modalVisible = await this.page.isVisible('.modal-title:has-text("Recovery Codes")').catch(() => false);
     if (modalVisible) {
-        await this.page.click('.modal-footer button:has-text("Not now")');
+        await this.page.click('.modal-footer button:has-text("Ignore")');
         await this.page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
             state: 'hidden',
             timeout: 10000,

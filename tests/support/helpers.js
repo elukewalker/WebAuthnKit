@@ -103,7 +103,7 @@ async function captureRecoveryCodes(page) {
         }
     }
 
-    await page.click('.modal-footer button:has-text("Not now")');
+    await page.click('.modal-footer button:has-text("Ignore")');
     return codes;
 }
 
@@ -128,7 +128,7 @@ async function signInWithRecoveryCode(page, username, code) {
 async function dismissRecoveryCodesModal(page) {
     const visible = await page.isVisible('.modal-title:has-text("Recovery Codes")');
     if (visible) {
-        await page.click('.modal-footer button:has-text("Not now")');
+        await page.click('.modal-footer button:has-text("Ignore")');
         await page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
             state: 'hidden', timeout: 10000,
         });

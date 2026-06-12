@@ -136,6 +136,15 @@ Given('I am signed in', async function () {
     await this.page.fill('.modal.show input[name="pin"]', '1234');
     await this.page.click('.modal.show .modal-footer button:has-text("Submit")');
     await this.page.waitForURL(`${APP_URL}/`, { timeout: 60000 });
+    // Dismiss Recovery Codes modal using "Ignore" (sets localStorage) to prevent re-open
+    // which would intercept clicks on the Change PIN modal.
+    const rcVisible = await this.page.isVisible('.modal-title:has-text("Recovery Codes")').catch(() => false);
+    if (rcVisible) {
+        await this.page.click('.modal-footer button:has-text("Ignore")');
+        await this.page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
+            state: 'hidden', timeout: 10000,
+        });
+    }
 });
 
 // Changes the server-verified PIN from the dashboard.

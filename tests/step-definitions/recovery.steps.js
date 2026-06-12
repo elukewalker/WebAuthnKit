@@ -47,7 +47,7 @@ Given('I have already used one recovery code', async function () {
         { timeout: 5000 }
     ).then(() => true).catch(() => false);
     if (recoveryModal) {
-        await this.page.click('.modal-footer button:has-text("Close")');
+        await this.page.click('.modal-footer button:has-text("Ignore")');
     }
 
     // Sign out and navigate back to the recovery code sign-in page
@@ -96,5 +96,5 @@ Then('that recovery code should be marked as used', async function () {
     const countText = await this.page.locator('text=/\\d+ Recovery Codes? remaining/').textContent();
     const count = parseInt(countText.match(/(\d+)/)[1], 10);
     assert.ok(count < 5, `Expected fewer than 5 codes remaining but found ${count}`);
-    await this.page.click('.modal-footer button:has-text("Not now")');
+    await this.page.click('.modal-footer button:has-text("Ignore")');
 });
