@@ -6,24 +6,29 @@ const { APP_URL } = require('../support/helpers');
 // Credentials render as div.d-flex rows with a <button>Edit</button>, NOT as ul>li>a.
 const CRED_EDIT_BTN = '.card:has(h5:has-text("Security Keys")) button:has-text("Edit")';
 
-// The recovery codes modal opens AFTER the getAll API call returns (when
-// recoveryCodesViewed is set to false). Wait for either the modal or the credential
-// list to appear, then dismiss the modal if it showed up.
+// The recovery codes modal opens AFTER the getAll API call returns (triggered by
+// a useEffect that depends on recoveryCodesViewed / allRecoveryCodesUsed). This means
+// the credential list always appears BEFORE the modal. We must:
+//   1. Wait for the credential list to confirm the dashboard has loaded.
+//   2. Wait a short window for the modal to appear (it fires in the same render cycle
+//      as getAll completes, so within ~2–3 s of the credentials appearing).
+//   3. Dismiss with "Ignore, and don't ask again" (sets localStorage) to prevent
+//      the modal from re-opening during the same browser session when the credential
+//      list is refreshed by alerts.
 async function waitForDashboardReady(page) {
-    await Promise.race([
-        page.waitForSelector('.modal-title:has-text("Recovery Codes")', { timeout: 30000 }),
-        page.waitForSelector(CRED_EDIT_BTN, { timeout: 30000 }),
-    ]);
-    const modalVisible = await page.isVisible('.modal-title:has-text("Recovery Codes")');
-    if (modalVisible) {
+    await page.waitForSelector(CRED_EDIT_BTN, { timeout: 30000 });
+    // Give the useEffect up to 4 s to fire and show the modal.
+    const rcModal = await page.waitForSelector(
+        '.modal-title:has-text("Recovery Codes")', { timeout: 4000 }
+    ).then(() => true).catch(() => false);
+    if (rcModal) {
         await page.click('.modal-footer button:has-text("Ignore")');
         await page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
-            state: 'hidden',
-            timeout: 10000,
+            state: 'hidden', timeout: 10000,
         });
+        // Re-confirm credential list is visible after modal closes
+        await page.waitForSelector(CRED_EDIT_BTN, { timeout: 15000 });
     }
-    // Ensure the credential list is visible after the modal (if any) is dismissed
-    await page.waitForSelector(CRED_EDIT_BTN, { timeout: 15000 });
 }
 
 // Waits for the credential list to be visible after a dashboard-modifying operation.
