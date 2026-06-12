@@ -138,6 +138,12 @@ Given('I am signed in', async function () {
     await this.page.waitForURL(`${APP_URL}/`, { timeout: 60000 });
     // Dismiss Recovery Codes modal using "Ignore" (sets localStorage) to prevent re-open
     // which would intercept clicks on the Change PIN modal.
+    // Use Promise.race so we wait for the modal if it's still loading, instead of
+    // a snap isVisible() that misses it if React hasn't rendered it yet.
+    await Promise.race([
+        this.page.waitForSelector('.modal-title:has-text("Recovery Codes")', { timeout: 8000 }),
+        this.page.waitForSelector('.card:has(h5:has-text("Security Keys")) button:has-text("Edit")', { timeout: 8000 }),
+    ]).catch(() => {});
     const rcVisible = await this.page.isVisible('.modal-title:has-text("Recovery Codes")').catch(() => false);
     if (rcVisible) {
         await this.page.click('.modal-footer button:has-text("Ignore")');

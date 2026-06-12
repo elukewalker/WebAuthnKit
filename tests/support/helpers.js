@@ -104,6 +104,9 @@ async function captureRecoveryCodes(page) {
     }
 
     await page.click('.modal-footer button:has-text("Ignore")');
+    await page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
+        state: 'hidden', timeout: 10000,
+    });
     return codes;
 }
 

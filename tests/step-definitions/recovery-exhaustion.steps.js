@@ -27,7 +27,12 @@ Given('{string} has used all their recovery codes', async function (_placeholder
         await this.page.click('button:has-text("Continue")');
         await this.page.waitForURL('**/', { timeout: 30000 });
 
-        // Dismiss recovery codes modal if it opens
+        // Dismiss recovery codes modal if it opens. Use Promise.race to wait for either
+        // the modal or the credential list (whichever appears first) before checking.
+        await Promise.race([
+            this.page.waitForSelector('.modal-title:has-text("Recovery Codes")', { timeout: 8000 }),
+            this.page.waitForSelector('.card:has(h5:has-text("Security Keys")) button:has-text("Edit")', { timeout: 8000 }),
+        ]).catch(() => {});
         const modalVisible = await this.page.isVisible('.modal-title:has-text("Recovery Codes")').catch(() => false);
         if (modalVisible) {
             await this.page.click('.modal-footer button:has-text("Ignore")');

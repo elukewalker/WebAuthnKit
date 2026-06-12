@@ -48,6 +48,9 @@ Given('I have already used one recovery code', async function () {
     ).then(() => true).catch(() => false);
     if (recoveryModal) {
         await this.page.click('.modal-footer button:has-text("Ignore")');
+        await this.page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
+            state: 'hidden', timeout: 10000,
+        });
     }
 
     // Sign out and navigate back to the recovery code sign-in page

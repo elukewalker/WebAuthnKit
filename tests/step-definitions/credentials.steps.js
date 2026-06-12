@@ -54,16 +54,11 @@ Given('{string} has at least one registered credential named {string}', async fu
 
 Given('I am on the dashboard', async function () {
     await this.page.waitForURL(`${APP_URL}/`, { timeout: 10000 });
-    await this.page.waitForSelector('h5:has-text("Security Keys")', { timeout: 10000 });
-    // Dismiss recovery codes modal if it auto-opened (recoveryCodesViewed === false)
-    const modalVisible = await this.page.isVisible('.modal-title:has-text("Recovery Codes")').catch(() => false);
-    if (modalVisible) {
-        await this.page.click('.modal-footer button:has-text("Ignore")');
-        await this.page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
-            state: 'hidden',
-            timeout: 10000,
-        });
-    }
+    // waitForDashboardReady waits for either the Recovery Codes modal or the credential
+    // list (whichever appears first), then dismisses the modal if it opened.
+    // Using "Ignore" sets localStorage to prevent the modal from re-opening and
+    // intercepting pointer events on any subsequent modals (Delete, Change PIN, etc.).
+    await waitForDashboardReady(this.page);
 });
 
 Then('I should see at least one credential in the list', async function () {
