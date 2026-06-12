@@ -10,7 +10,7 @@ Feature: User Registration
     When I enter a new username "testuser"
     And I click Continue
     Then I should be on the registration page
-    And I should see "Hello testuser"
+    And I should see "Add your Security Key"
     When I click Continue
     And the virtual authenticator completes the ceremony
     Then I should be redirected to the dashboard

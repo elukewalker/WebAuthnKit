@@ -22,7 +22,7 @@ Then('I should see {string}', async function (text) {
         // This alert is transient — it is dispatched and then immediately cleared by
         // AlertClearer when the route changes to '/'. Verify registration success via
         // durable dashboard state (the Security Keys section) instead.
-        await this.page.waitForSelector('h3:has-text("Security Keys")', { timeout: 15000 });
+        await this.page.waitForSelector('h5:has-text("Security Keys")', { timeout: 15000 });
         return;
     }
     // Handle dynamic "Hello testuser" — replace the placeholder with the actual username
@@ -42,9 +42,9 @@ Then('a credential should exist for {string} in the system', async function (_pl
     });
     console.log('[DEBUG] localStorage:', JSON.stringify(debugInfo));
 
-    // Credential list items have Edit links; recovery-code modal li items do not.
-    // Wait for at least one credential item to appear (API call may still be in-flight).
-    const credItems = this.page.locator('ul li:has(a:has-text("Edit"))');
+    // Credential list items render as divs with a button labelled "Edit".
+    // Wait for at least one Edit button to appear inside the Security Keys card.
+    const credItems = this.page.locator('.card:has(h5:has-text("Security Keys")) button:has-text("Edit")');
     await credItems.first().waitFor({ timeout: 30000 });
     const count = await credItems.count();
     assert.ok(count > 0, 'Expected at least one credential in the list');

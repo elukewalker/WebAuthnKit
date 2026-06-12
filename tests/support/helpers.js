@@ -1,4 +1,4 @@
-const APP_URL = process.env.APP_URL || 'https://dev.d2f6qcxorpyfsr.amplifyapp.com';
+const APP_URL = process.env.APP_URL || 'https://dev.d2eh2tf6lhqm25.amplifyapp.com';
 
 // Generate a unique username for each test run to avoid Cognito state conflicts.
 // Cognito usernames are case-insensitive; the app enforces max 20 chars.

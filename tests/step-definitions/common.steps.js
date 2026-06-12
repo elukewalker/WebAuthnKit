@@ -19,7 +19,12 @@ When('I click Sign Out', async function () {
 });
 
 When('I click Cancel', async function () {
-    await this.page.click('a:has-text("Cancel")');
+    // On the register page, "Cancel" is the "Log In" span (returns to login without registering).
+    // On other pages, look for a standard anchor with "Cancel" text.
+    await this.page
+        .locator('a:has-text("Cancel"), span.btn-link:has-text("Log In")')
+        .first()
+        .click();
 });
 
 // The virtual authenticator responds automatically to WebAuthn API calls.

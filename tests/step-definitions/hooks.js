@@ -29,40 +29,35 @@ Before(async function () {
     this.usedRecoveryCode = null;
 
 
-    // Intercept Cognito InitiateAuth / RespondToAuthChallenge to see what's happening
+    // Intercept ALL Cognito API calls to see what's happening
     await this.context.route('**cognito-idp**', async (route) => {
         const req = route.request();
         const target = req.headers()['x-amz-target'] || '';
-        if (target.includes('RespondToAuthChallenge') || target.includes('InitiateAuth')) {
-            const body = req.postData() || '';
-            const response = await route.fetch();
-            const resBody = await response.text().catch(() => '[unreadable]');
-            // Log the full request body for RespondToAuthChallenge to see the credential
-            if (target.includes('RespondToAuthChallenge')) {
-                try {
-                    const parsed = JSON.parse(body);
-                    if (parsed.ChallengeResponses?.ANSWER) {
-                        const answer = JSON.parse(parsed.ChallengeResponses.ANSWER);
-                        console.log(`[COGNITO] ${target} ANSWER.requestId=${answer.requestId}`);
-                        if (answer.credential?.response) {
-                            console.log(`[COGNITO] credential.id=${answer.credential.id}`);
-                            console.log(`[COGNITO] clientDataJSON(decoded)=${Buffer.from(answer.credential.response.clientDataJSON, 'base64url').toString('utf8')}`);
-                        }
+        const body = req.postData() || '';
+        const response = await route.fetch();
+        const resBody = await response.text().catch(() => '[unreadable]');
+        // Log the full request body for RespondToAuthChallenge to see the credential
+        if (target.includes('RespondToAuthChallenge')) {
+            try {
+                const parsed = JSON.parse(body);
+                if (parsed.ChallengeResponses?.ANSWER) {
+                    const answer = JSON.parse(parsed.ChallengeResponses.ANSWER);
+                    console.log(`[COGNITO] ${target} ANSWER.requestId=${answer.requestId}`);
+                    if (answer.credential?.response) {
+                        console.log(`[COGNITO] credential.id=${answer.credential.id}`);
+                        console.log(`[COGNITO] clientDataJSON(decoded)=${Buffer.from(answer.credential.response.clientDataJSON, 'base64url').toString('utf8')}`);
                     }
-                } catch (e) { /* ignore parse errors */ }
-            }
-            console.log(`[COGNITO] ${target}: req=${body.slice(0, 300)} → ${response.status()}: ${resBody.slice(0, 800)}`);
-            await route.fulfill({ response });
-        } else {
-            await route.continue();
+                }
+            } catch (e) { /* ignore parse errors */ }
         }
+        console.log(`[COGNITO] ${target}: req=${body.slice(0, 300)} → ${response.status()}: ${resBody.slice(0, 800)}`);
+        await route.fulfill({ response });
     });
     this.page.on('console', msg => {
         const type = msg.type();
         const text = msg.text();
-        if (type === 'error' || type === 'warn' || text.startsWith('[RegisterPage]') || text.includes('getAll response')) {
-            console.log(`[BROWSER ${type.toUpperCase()}] ${text}`);
-        }
+        // Log all console messages to trace signUp flow
+        console.log(`[BROWSER ${type.toUpperCase()}] ${text}`);
     });
 });
 

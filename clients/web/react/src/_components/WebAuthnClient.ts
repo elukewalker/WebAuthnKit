@@ -611,7 +611,8 @@ async function signUp(name, requestUV, registerWebKit) {
     [...Array(length)]
       .map(() => Math.floor(Math.random() * 36).toString(36))
       .join("");
-  const password = randomString(14);
+  // Append a guaranteed digit to satisfy Cognito's RequireNumbers policy.
+  const password = randomString(13) + Math.floor(Math.random() * 10).toString();
   const username = name.toLocaleLowerCase();
   localStorage.setItem("username", username);
   const attributes = { name: username };

@@ -128,8 +128,25 @@ STARTER_KIT_DIR=$(echo $(pwd) | rev | cut -d'/' -f3- | rev)
 # Result is a production build of /backend/lambda-functions/JavaWebAuthnLib/target/webauthn.jar
 # to be deployed via SAM below
 echo "Step 1 [Pre-Deployment] Running mvn clean install of the JavaWebAuthnLib (Java) Lambda function..."
-docker run -w /webauthnkit/backend/lambda-functions/JavaWebAuthnLib --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev mvn clean install > /dev/null 2>&1
+docker run -w /webauthnkit/backend/lambda-functions/JavaWebAuthnLib --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev mvn clean install > /dev/null || error 1 "mvn clean install failed — check the output above for details"
 echo "mvn clean install: COMPLETE"
+
+#2a |****************** Pre-flight: VPC limit check ***********************************|
+# The template creates one VPC. AWS default limit is 5 VPCs per region.
+# Warn and exit early if the account is at the limit rather than letting CloudFormation
+# fail 10 minutes into a deploy.
+VPC_COUNT=$(aws ec2 describe-vpcs --region $AWS_REGION --profile $AWS_CLI_PROFILE --query "length(Vpcs)" --output text 2>/dev/null || echo "0")
+VPC_LIMIT=$(aws service-quotas get-service-quota --service-code ec2 --quota-code L-F678F1CE --region $AWS_REGION --profile $AWS_CLI_PROFILE --query "Quota.Value" --output text 2>/dev/null || echo "5")
+VPC_LIMIT=${VPC_LIMIT%.*}  # strip decimal (quota returns 5.0)
+if [ "$VPC_COUNT" -ge "$VPC_LIMIT" ]; then
+    echo ""
+    echo "ERROR: VPC limit reached. Your account has $VPC_COUNT VPCs in $AWS_REGION (limit: $VPC_LIMIT)."
+    echo "This deployment creates one VPC. Please:"
+    echo "  1. Delete unused VPCs in the AWS Console under VPC > Your VPCs"
+    echo "  2. Or request a VPC limit increase: https://console.aws.amazon.com/servicequotas/home/services/vpc/quotas"
+    echo ""
+    exit 1
+fi
 
 #2 |************************ Create S3 Bucket ****************************************|
 # Create an Amazon S3 bucket used for SAM deployment
@@ -143,12 +160,12 @@ aws s3 mb s3://$S3_BUCKET_NAME --region $AWS_REGION --endpoint-url https://s3.$A
 #3 |*************************** SAM Build ********************************************|
 echo "Step 3 [Deployment] Running SAM build...(~1 minute) "
 docker run -w /webauthnkit/backend --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev \
-/usr/local/bin/sam build > /dev/null 2>&1
+/usr/local/bin/sam build > /dev/null || error 1 "SAM build failed — check the output above for details"
 
 #4 |***************************** SAM Package ****************************************|
 echo "Step 4 [Deployment] Running SAM package..."
 docker run -w /webauthnkit/backend --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev \
-/usr/local/bin/sam package > /dev/null 2>&1
+/usr/local/bin/sam package > /dev/null || error 1 "SAM package failed — check the output above for details"
 
 #5 |**************************** SAM Deploy ******************************************|
 echo "Step 5 [Deployment] Running SAM deploy..."
@@ -205,10 +222,10 @@ aws cloudformation --region $AWS_REGION describe-stacks --stack-name $CF_STACK_N
 echo "Step 7 [Web Client] Building and installing React Web Client..."
 echo "Running npm install...(~2 minutes)"
 #docker run -w /webauthnkit/clients/web/react --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev npm install --only=production > /dev/null 2>&1
-docker run -w /webauthnkit/clients/web/react --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev npm install > /dev/null 2>&1
+docker run -w /webauthnkit/clients/web/react --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev npm install > /dev/null || error 1 "npm install failed — check the output above for details"
 
 echo "Step 7 [Web Client] Running npm run build....(~1 minute)"
-docker run -w /webauthnkit/clients/web/react --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev npm run build > /dev/null 2>&1
+docker run -w /webauthnkit/clients/web/react --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev npm run build > /dev/null || error 1 "npm run build failed — check the output above for details"
 
 #8 |********************** Archive React Web App **********************************|
 # Archive /dist contents of React Web App
