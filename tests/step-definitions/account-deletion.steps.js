@@ -8,7 +8,7 @@ const { APP_URL } = require('../support/helpers');
 When('I confirm account deletion', async function () {
     await this.page.waitForSelector('.modal-title:has-text("Delete account")', { timeout: 10000 });
     await this.page.waitForSelector('.modal.show', { timeout: 5000 });
-    await this.page.locator('.modal-body button:has-text("Delete")').click({ force: true });
+    await this.page.locator('.modal-footer button:has-text("Delete")').click({ force: true });
 });
 
 // Clicks the cancel/close button inside the Delete Account modal.

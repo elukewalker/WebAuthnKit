@@ -103,7 +103,10 @@ async function captureRecoveryCodes(page) {
         }
     }
 
-    await page.click('.modal-footer button:has-text("Ignore")');
+    // Use "Not now" (not "Ignore") so that localStorage is NOT set.
+    // The exhaustion scenario needs ignoreModal===false so the modal can
+    // auto-open when allRecoveryCodesUsed===true.
+    await page.click('.modal-footer button:has-text("Not now")');
     await page.waitForSelector('.modal-title:has-text("Recovery Codes")', {
         state: 'hidden', timeout: 10000,
     });
