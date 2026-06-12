@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zip \
     git \
     sudo \
+    make \
     ca-certificates \
     gnupg \
     software-properties-common \
