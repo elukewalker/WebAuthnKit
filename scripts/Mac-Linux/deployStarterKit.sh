@@ -162,12 +162,8 @@ echo "Step 3 [Deployment] Running SAM build...(~1 minute) "
 docker run -w /webauthnkit/backend --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev \
 /usr/local/bin/sam build > /dev/null || error 1 "SAM build failed — check the output above for details"
 
-#4 |***************************** SAM Package ****************************************|
-echo "Step 4 [Deployment] Running SAM package..."
-docker run -w /webauthnkit/backend --volume=$STARTER_KIT_DIR:/webauthnkit starterkit:dev \
-/usr/local/bin/sam package > /dev/null || error 1 "SAM package failed — check the output above for details"
-
-#5 |**************************** SAM Deploy ******************************************|
+#4 |**************************** SAM Deploy ******************************************|
+# Note: sam deploy --s3-bucket handles packaging inline; standalone sam package is not needed.
 echo "Step 5 [Deployment] Running SAM deploy..."
 docker run -w /webauthnkit/backend --volume=$STARTER_KIT_DIR:/webauthnkit \
 --volume=${HOME}/.aws:/home/developer/.aws:ro \
