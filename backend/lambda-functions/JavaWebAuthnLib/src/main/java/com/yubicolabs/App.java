@@ -22,6 +22,7 @@ import com.yubico.webauthn.data.AttestationConveyancePreference;
 import com.yubico.webauthn.data.AuthenticatorSelectionCriteria;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.PublicKeyCredentialDescriptor;
+import com.yubico.webauthn.data.AuthenticatorAttachment;
 import com.yubico.webauthn.data.ResidentKeyRequirement;
 import com.yubico.webauthn.data.UserVerificationRequirement;
 import com.yubico.webauthn.data.UserIdentity;
@@ -129,6 +130,7 @@ public class App implements RequestHandler<Object, Object> {
         String displayName = jsonRequest.get("displayName").getAsString();
         String credentialNickname = jsonRequest.get("credentialNickname").getAsString();
         ResidentKeyRequirement residentKey = parseResidentKey(jsonRequest);
+        Optional<AuthenticatorAttachment> authenticatorAttachment = parseAuthenticatorAttachment(jsonRequest);
         String uid = jsonRequest.get("uid").getAsString();
 
         log.trace("startRegistration username: {}, displayName: {}, credentialNickname: {}, residentKey: {}, uid {}", username, displayName, credentialNickname, residentKey, uid);
@@ -166,6 +168,7 @@ public class App implements RequestHandler<Object, Object> {
                     .authenticatorSelection(AuthenticatorSelectionCriteria.builder()
                         .residentKey(residentKey)
                         .userVerification(UserVerificationRequirement.PREFERRED)
+                        .authenticatorAttachment(authenticatorAttachment.orElse(null))
                         .build()
                     )
                     .build()
@@ -414,6 +417,25 @@ public class App implements RequestHandler<Object, Object> {
                 : ResidentKeyRequirement.DISCOURAGED;
         }
         return ResidentKeyRequirement.PREFERRED;
+    }
+
+    /**
+     * Parses the requireAuthenticatorAttachment parameter from the request.
+     * Accepts "PLATFORM" or "platform" → AuthenticatorAttachment.PLATFORM.
+     * Accepts "CROSS_PLATFORM" or "cross-platform" → AuthenticatorAttachment.CROSS_PLATFORM.
+     * Returns Optional.empty() if absent or null (no attachment constraint).
+     */
+    private static Optional<AuthenticatorAttachment> parseAuthenticatorAttachment(JsonObject jsonRequest) {
+        JsonElement elem = jsonRequest.get("requireAuthenticatorAttachment");
+        if (elem == null || elem.isJsonNull()) {
+            return Optional.empty();
+        }
+        String val = elem.getAsString().toUpperCase().replace("-", "_");
+        switch (val) {
+            case "PLATFORM": return Optional.of(AuthenticatorAttachment.PLATFORM);
+            case "CROSS_PLATFORM": return Optional.of(AuthenticatorAttachment.CROSS_PLATFORM);
+            default: return Optional.empty();
+        }
     }
 
     private static ByteArray generateRandom(int length) {
