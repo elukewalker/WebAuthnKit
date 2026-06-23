@@ -264,7 +264,7 @@ async function startRegisterFIDO2Credential(profile, body, uid) {
         "type": "startRegistration",
         "username": profile.username,
         "displayName": profile.username,
-        "credentialNickname": jsonBody.nickname || "Security Key",
+        "credentialNickname": jsonBody.nickname || (jsonBody.requireAuthenticatorAttachment === "PLATFORM" ? "Trusted Device" : "Security Key"),
         "residentKey": jsonBody.residentKey || (jsonBody.requireResidentKey ? "required" : "preferred"),
         "requireAuthenticatorAttachment": jsonBody.requireAuthenticatorAttachment || null,
         "uid": uid
