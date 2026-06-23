@@ -183,7 +183,7 @@ const HomePage = function () {
       const itemAuthAttach =
         credList[i].registrationRequest.publicKeyCredentialCreationOptions
           .authenticatorSelection?.authenticatorAttachment;
-      if (itemAuthAttach === "PLATFORM") {
+      if (itemAuthAttach?.toLowerCase() === "platform") {
         regDevice.push(credList[i]);
       } else {
         secKeys.push(credList[i]);

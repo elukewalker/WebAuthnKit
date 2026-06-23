@@ -825,6 +825,11 @@ async function registerNewCredential(
         );
       }
     } else {
+      if (!requestUV) {
+        throw WebAuthnClientException(
+          "User verification is required but was not provided by the authenticator."
+        );
+      }
       const uvPin = await requestUV(challengeResponse);
       challengeResponse.pinCode = uvPin;
       await credentialService.registerFinish(challengeResponse);
